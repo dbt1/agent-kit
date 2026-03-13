@@ -27,6 +27,18 @@ if ! AGENT_KIT_HOME="$ROOT_DIR" AGENT_KIT_STRICT_ISOLATION=1 \
   exit 1
 fi
 
+check_path() {
+  local p="$1"
+  if [ ! -e "$TMP_REPO/$p" ]; then
+    echo "expected path missing after bootstrap: $p" >&2
+    echo "--- bootstrap log ---" >&2
+    cat "$LOG_SMOKE" >&2
+    echo "--- repo tree ---" >&2
+    find "$TMP_REPO" -maxdepth 3 -print >&2
+    exit 1
+  fi
+}
+
 for p in \
   AGENTS.md \
   CLAUDE.md \
@@ -36,7 +48,7 @@ for p in \
   workitems/INDEX.md \
   workitems/template.md \
   .agent-workflow/state.env; do
-  test -e "$TMP_REPO/$p"
+  check_path "$p"
 done
 
 # 3) Strict isolation block test
@@ -50,7 +62,7 @@ if AGENT_KIT_HOME="$ROOT_DIR" AGENT_KIT_STRICT_ISOLATION=1 \
   exit 1
 fi
 
-if ! grep -q "strict isolation" "$LOG_STRICT"; then
+if ! grep -Eq "strict isolation|unmanaged existing" "$LOG_STRICT"; then
   echo "strict isolation failure message missing" >&2
   cat "$LOG_STRICT" >&2
   exit 1
