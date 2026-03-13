@@ -14,11 +14,18 @@ bash -n bootstrap/install-auto-bootstrap.sh
 # 2) Bootstrap smoke test in clean repo
 TMP_REPO="$(mktemp -d)"
 TMP_BLOCK="$(mktemp -d)"
-trap 'rm -rf "$TMP_REPO" "$TMP_BLOCK"' EXIT
+LOG_SMOKE="$(mktemp)"
+LOG_STRICT="$(mktemp)"
+trap 'rm -rf "$TMP_REPO" "$TMP_BLOCK" "$LOG_SMOKE" "$LOG_STRICT"' EXIT
 
 git -C "$TMP_REPO" init -q
 
-AGENT_KIT_HOME="$ROOT_DIR" ./bootstrap/bootstrap.sh --project-root "$TMP_REPO" >/tmp/agent-kit-smoke.log
+if ! AGENT_KIT_HOME="$ROOT_DIR" AGENT_KIT_STRICT_ISOLATION=1 \
+  ./bootstrap/bootstrap.sh --project-root "$TMP_REPO" >"$LOG_SMOKE" 2>&1; then
+  echo "bootstrap smoke failed" >&2
+  cat "$LOG_SMOKE" >&2
+  exit 1
+fi
 
 for p in \
   AGENTS.md \
@@ -36,13 +43,16 @@ done
 git -C "$TMP_BLOCK" init -q
 echo "legacy" > "$TMP_BLOCK/AGENTS.md"
 
-if AGENT_KIT_HOME="$ROOT_DIR" ./bootstrap/bootstrap.sh --project-root "$TMP_BLOCK" >/tmp/agent-kit-strict.log 2>&1; then
+if AGENT_KIT_HOME="$ROOT_DIR" AGENT_KIT_STRICT_ISOLATION=1 \
+  ./bootstrap/bootstrap.sh --project-root "$TMP_BLOCK" >"$LOG_STRICT" 2>&1; then
   echo "strict isolation expected to block but command succeeded" >&2
+  cat "$LOG_STRICT" >&2
   exit 1
 fi
 
-if ! grep -q "strict isolation" /tmp/agent-kit-strict.log; then
+if ! grep -q "strict isolation" "$LOG_STRICT"; then
   echo "strict isolation failure message missing" >&2
+  cat "$LOG_STRICT" >&2
   exit 1
 fi
 
