@@ -1,5 +1,7 @@
 # Migration and Rollback
 
+Language: [English](migration.md) | [Deutsch](migration.de.md)
+
 This guide is for repositories that already contain `AGENTS.md`, `CLAUDE.md`,
 `MEMORY.md`, or other workflow files.
 

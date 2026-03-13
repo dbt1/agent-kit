@@ -1,5 +1,7 @@
 # Release Process
 
+Language: [English](release.md) | [Deutsch](release.de.md)
+
 ## Goals
 
 - Keep releases reproducible
