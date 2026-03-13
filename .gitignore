@@ -1,0 +1,6 @@
+# generated memory files
+memory/*_MEMORY.md
+
+# keep docs/config under memory tracked
+!memory/.gitignore
+!memory/README.md

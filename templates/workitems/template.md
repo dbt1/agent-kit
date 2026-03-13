@@ -1,0 +1,28 @@
+# WORK-XXX: Short Name
+
+## Status
+Planned
+
+## Metadata
+- Created: YYYY-MM-DD
+- Last Updated: YYYY-MM-DD
+- Owner: <name>
+
+## Objective
+Describe expected outcome.
+
+## Non-Goals
+Describe what is out of scope.
+
+## Acceptance Criteria
+- [ ] AC-1
+- [ ] AC-2
+
+## Validation
+- [ ] Command(s) and expected results documented
+
+## Risks
+- Risk 1
+
+## Notes
+Implementation and review notes.

@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SOURCE="${BASH_SOURCE[0]}"
+while [ -L "$SOURCE" ]; do
+  LINK_TARGET="$(readlink "$SOURCE")"
+  if [[ "$LINK_TARGET" = /* ]]; then
+    SOURCE="$LINK_TARGET"
+  else
+    SOURCE="$(cd "$(dirname "$SOURCE")" && cd "$(dirname "$LINK_TARGET")" && pwd)/$(basename "$LINK_TARGET")"
+  fi
+done
+
+SCRIPT_DIR="$(cd "$(dirname "$SOURCE")" && pwd)"
+AGENT_KIT_HOME="${AGENT_KIT_HOME:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+BOOTSTRAP_SCRIPT="$AGENT_KIT_HOME/bootstrap/bootstrap.sh"
+SELF_REAL="$(readlink -f "$0" 2>/dev/null || realpath "$0" 2>/dev/null || printf '%s' "$0")"
+CMD_NAME="$(basename "$0")"
+
+resolve_real_cmd() {
+  local cmd="$1"
+  local env_name env_value
+
+  env_name="AGENT_KIT_REAL_$(printf '%s' "$cmd" | tr '[:lower:]' '[:upper:]' | tr -cs 'A-Z0-9' '_')"
+  env_value="${!env_name:-}"
+  if [ -n "$env_value" ] && [ -x "$env_value" ]; then
+    printf '%s\n' "$env_value"
+    return 0
+  fi
+
+  local candidate candidate_real
+  while IFS= read -r candidate; do
+    [ -n "$candidate" ] || continue
+    candidate_real="$(readlink -f "$candidate" 2>/dev/null || realpath "$candidate" 2>/dev/null || printf '%s' "$candidate")"
+    if [ "$candidate_real" = "$SELF_REAL" ]; then
+      continue
+    fi
+    printf '%s\n' "$candidate"
+    return 0
+  done < <(which -a "$cmd" 2>/dev/null | awk '!seen[$0]++')
+
+  return 1
+}
+
+if [ "${AGENT_KIT_AUTOBOOTSTRAP:-1}" = "1" ] && [ -x "$BOOTSTRAP_SCRIPT" ]; then
+  "$BOOTSTRAP_SCRIPT" --agent "$CMD_NAME" --quiet || true
+fi
+
+if ! REAL_CMD="$(resolve_real_cmd "$CMD_NAME")"; then
+  echo "agent-wrapper: unable to resolve real command for '$CMD_NAME'" >&2
+  exit 127
+fi
+
+exec "$REAL_CMD" "$@"
