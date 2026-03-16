@@ -16,6 +16,7 @@ AGENT_KIT_HOME="${AGENT_KIT_HOME:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 BOOTSTRAP_SCRIPT="$AGENT_KIT_HOME/bootstrap/bootstrap.sh"
 SELF_REAL="$(readlink -f "$0" 2>/dev/null || realpath "$0" 2>/dev/null || printf '%s' "$0")"
 CMD_NAME="$(basename "$0")"
+FORCE_ROOTS="${AGENT_KIT_AUTOBOOTSTRAP_FORCE_ROOTS:-}"
 
 resolve_real_cmd() {
   local cmd="$1"
@@ -42,8 +43,49 @@ resolve_real_cmd() {
   return 1
 }
 
+normalize_dir() {
+  local dir="$1"
+  [ -n "$dir" ] || return 1
+  if [ -d "$dir" ]; then
+    (cd "$dir" && pwd -P)
+    return 0
+  fi
+  local parent base
+  parent="$(dirname "$dir")"
+  base="$(basename "$dir")"
+  if [ ! -d "$parent" ]; then
+    return 1
+  fi
+  printf '%s/%s\n' "$(cd "$parent" && pwd -P)" "$base"
+}
+
+should_force_bootstrap() {
+  [ -n "$FORCE_ROOTS" ] || return 1
+  local project_root normalized_project normalized_root
+  project_root="$(git rev-parse --show-toplevel 2>/dev/null)" || return 1
+  normalized_project="$(normalize_dir "$project_root")" || return 1
+
+  local old_ifs
+  old_ifs="$IFS"
+  IFS="${AGENT_KIT_PATH_SEPARATOR:-:}"
+  for root in $FORCE_ROOTS; do
+    [ -n "$root" ] || continue
+    normalized_root="$(normalize_dir "$root" 2>/dev/null)" || continue
+    if [ "$normalized_project" = "$normalized_root" ]; then
+      IFS="$old_ifs"
+      return 0
+    fi
+  done
+  IFS="$old_ifs"
+  return 1
+}
+
 if [ "${AGENT_KIT_AUTOBOOTSTRAP:-1}" = "1" ] && [ -x "$BOOTSTRAP_SCRIPT" ]; then
-  "$BOOTSTRAP_SCRIPT" --agent "$CMD_NAME" --quiet || true
+  BOOTSTRAP_ARGS=(--agent "$CMD_NAME" --quiet)
+  if should_force_bootstrap; then
+    BOOTSTRAP_ARGS+=(--force)
+  fi
+  "$BOOTSTRAP_SCRIPT" "${BOOTSTRAP_ARGS[@]}" || true
 fi
 
 if ! REAL_CMD="$(resolve_real_cmd "$CMD_NAME")"; then

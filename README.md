@@ -127,6 +127,9 @@ If copy fallback is used:
 - later changes to `profiles/*.md` or `SKILLS.md` in `agent-kit` do not
   auto-update already copied project files
 - run bootstrap again with `--force` to refresh copied files
+- optional: set `AGENT_KIT_AUTOBOOTSTRAP_FORCE_ROOTS` to auto-refresh selected
+  projects with `--force` (primarily useful for Windows projects using copy
+  fallback)
 
 To disable copy fallback and fail fast instead, set:
 
@@ -152,6 +155,7 @@ AGENT_KIT_ALLOW_COPY_FALLBACK=0
 
 - `AGENT_KIT_HOME`: path to this repository
 - `AGENT_KIT_AUTOBOOTSTRAP=0`: disable auto-bootstrap for one command
+- `AGENT_KIT_AUTOBOOTSTRAP_FORCE_ROOTS`: project root list that should auto-refresh with `--force` (Windows `;`, Linux/WSL `:` separated; in practice mainly useful for Windows copy-fallback setups)
 - `AGENT_KIT_STRICT_ISOLATION=1`: block mixed legacy state (default)
 - `AGENT_KIT_ALLOW_COPY_FALLBACK=1`: allow copy fallback if links are not possible
 - `AGENT_KIT_REAL_CLAUDE`, `AGENT_KIT_REAL_CODEX`, `AGENT_KIT_REAL_GEMINI`:

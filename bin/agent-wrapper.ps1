@@ -14,6 +14,7 @@ $AgentKitHome = [System.IO.Path]::GetFullPath($env:AGENT_KIT_HOME)
 $BootstrapScript = Join-Path $AgentKitHome "bootstrap/bootstrap.ps1"
 $CurrentScript = [System.IO.Path]::GetFullPath($ScriptPath)
 $WrapperDir = if ([string]::IsNullOrWhiteSpace($env:AGENT_KIT_WRAPPER_DIR)) { "" } else { [System.IO.Path]::GetFullPath($env:AGENT_KIT_WRAPPER_DIR) }
+$ForceRoots = [System.Environment]::GetEnvironmentVariable("AGENT_KIT_AUTOBOOTSTRAP_FORCE_ROOTS")
 $AgentName = ""
 $ForwardArgs = New-Object System.Collections.Generic.List[string]
 
@@ -33,6 +34,56 @@ function Name-ToEnvSuffix {
 function Is-ExecutablePath {
   param([string]$PathValue)
   return -not [string]::IsNullOrWhiteSpace($PathValue) -and (Test-Path -LiteralPath $PathValue -PathType Leaf)
+}
+
+function Normalize-DirPath {
+  param([string]$PathValue)
+
+  if ([string]::IsNullOrWhiteSpace($PathValue)) {
+    return $null
+  }
+
+  try {
+    $fullPath = [System.IO.Path]::GetFullPath($PathValue).TrimEnd("\", "/")
+    if ([string]::IsNullOrWhiteSpace($fullPath)) {
+      return $null
+    }
+    return $fullPath
+  } catch {
+    return $null
+  }
+}
+
+function Get-CurrentProjectRoot {
+  $projectRoot = & git rev-parse --show-toplevel 2>$null
+  if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($projectRoot)) {
+    return $null
+  }
+  return Normalize-DirPath -PathValue $projectRoot.Trim()
+}
+
+function Should-ForceBootstrap {
+  if ([string]::IsNullOrWhiteSpace($ForceRoots)) {
+    return $false
+  }
+
+  $projectRoot = Get-CurrentProjectRoot
+  if ([string]::IsNullOrWhiteSpace($projectRoot)) {
+    return $false
+  }
+
+  $separator = [regex]::Escape([string][System.IO.Path]::PathSeparator)
+  foreach ($candidateRoot in ($ForceRoots -split $separator)) {
+    $normalizedRoot = Normalize-DirPath -PathValue $candidateRoot.Trim()
+    if ([string]::IsNullOrWhiteSpace($normalizedRoot)) {
+      continue
+    }
+    if ($projectRoot.Equals($normalizedRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+      return $true
+    }
+  }
+
+  return $false
 }
 
 function Get-RealCommand {
@@ -129,7 +180,11 @@ function Main {
   if ($env:AGENT_KIT_AUTOBOOTSTRAP -ne "0" -and (Test-Path -LiteralPath $BootstrapScript)) {
     try {
       $shellPath = (Get-Process -Id $PID).Path
-      & $shellPath -NoProfile -File $BootstrapScript --agent $AgentName --quiet *> $null
+      $bootstrapArgs = @("-NoProfile", "-File", $BootstrapScript, "--agent", $AgentName, "--quiet")
+      if (Should-ForceBootstrap) {
+        $bootstrapArgs += "--force"
+      }
+      & $shellPath @bootstrapArgs *> $null
     } catch {
       # Keep wrapper execution resilient even if bootstrap fails.
     }

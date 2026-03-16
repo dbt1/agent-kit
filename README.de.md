@@ -128,6 +128,9 @@ Wenn der Copy-Fallback genutzt wird:
 - spaetere Aenderungen an `profiles/*.md` oder `SKILLS.md` in `agent-kit`
   werden nicht automatisch in bereits kopierte Projektdateien uebernommen
 - fuer ein Refresh Bootstrap erneut mit `--force` ausfuehren
+- optional: `AGENT_KIT_AUTOBOOTSTRAP_FORCE_ROOTS` setzen, um fuer ausgewaehlte
+  Projekte automatisch mit `--force` zu refreshen (vor allem fuer Windows-
+  Projekte mit Copy-Fallback)
 
 Um den Copy-Fallback auszuschalten und stattdessen hart zu fehlschlagen:
 
@@ -153,6 +156,7 @@ AGENT_KIT_ALLOW_COPY_FALLBACK=0
 
 - `AGENT_KIT_HOME`: Pfad zu diesem Repository
 - `AGENT_KIT_AUTOBOOTSTRAP=0`: Auto-Bootstrap fuer einen Aufruf aus
+- `AGENT_KIT_AUTOBOOTSTRAP_FORCE_ROOTS`: Liste von Projekt-Roots mit Auto-Refresh via `--force` (Windows `;`, Linux/WSL `:` getrennt; in der Praxis vor allem fuer Windows-Copy-Fallback sinnvoll)
 - `AGENT_KIT_STRICT_ISOLATION=1`: gemischte Legacy-Zustaende blockieren (Default)
 - `AGENT_KIT_ALLOW_COPY_FALLBACK=1`: Copy-Fallback erlauben, wenn Links nicht moeglich sind
 - `AGENT_KIT_REAL_CLAUDE`, `AGENT_KIT_REAL_CODEX`, `AGENT_KIT_REAL_GEMINI`:

@@ -222,7 +222,11 @@ function Safe-Symlink {
       return
     }
 
-    Log "[warn] keep existing regular file: $LinkPath"
+    if ($script:Force) {
+      Set-ManagedLink -Target $Target -LinkPath $LinkPath
+    } else {
+      Log "[warn] keep existing regular file: $LinkPath"
+    }
     return
   }
 
