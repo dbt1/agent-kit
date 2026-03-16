@@ -84,6 +84,12 @@ You should see command paths from the local wrapper install directory.
   - Linux / WSL: `$HOME/.local/share/agent-kit/bin`
 - Wrappers store the absolute path to the current `agent-kit` install.
   If you move `agent-kit` to a different folder later, run installer again.
+- Windows wrappers also try to self-heal:
+  - first `AGENT_KIT_HOME` from environment
+  - then common paths (`%USERPROFILE%\source\agent-kit`,
+    `%USERPROFILE%\sources\agent-kit`, `%USERPROFILE%\dev\agent-kit`,
+    `C:\tools\agent-kit`, `D:\tools\agent-kit`)
+  - if none match, re-run installer
 
 Custom wrapper install location:
 

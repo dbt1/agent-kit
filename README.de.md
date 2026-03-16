@@ -85,6 +85,12 @@ Die angezeigten Pfade sollten auf das lokale Wrapper-Verzeichnis zeigen.
 - Wrapper speichern den absoluten Pfad zur aktuellen `agent-kit`-Installation.
   Wenn `agent-kit` spaeter in einen anderen Ordner verschoben wird, den
   Installer erneut ausfuehren.
+- Windows-Wrapper versuchen zusaetzlich Self-Heal:
+  - zuerst `AGENT_KIT_HOME` aus der Umgebung
+  - danach uebliche Pfade (`%USERPROFILE%\source\agent-kit`,
+    `%USERPROFILE%\sources\agent-kit`, `%USERPROFILE%\dev\agent-kit`,
+    `C:\tools\agent-kit`, `D:\tools\agent-kit`)
+  - wenn nichts passt: Installer erneut ausfuehren
 
 Benutzerdefiniertes Wrapper-Ziel:
 

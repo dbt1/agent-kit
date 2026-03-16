@@ -80,20 +80,70 @@ function Install-Wrappers {
 @echo off
 setlocal
 set "AGENT_KIT_WRAPPER_DIR=$InstallDir"
+set "AGENT_KIT_HOME_CURRENT="
+
+if not "%AGENT_KIT_HOME%"=="" if exist "%AGENT_KIT_HOME%\bin\agent-wrapper.ps1" set "AGENT_KIT_HOME_CURRENT=%AGENT_KIT_HOME%"
+if "%AGENT_KIT_HOME_CURRENT%"=="" if exist "$AgentKitHome\bin\agent-wrapper.ps1" set "AGENT_KIT_HOME_CURRENT=$AgentKitHome"
+if "%AGENT_KIT_HOME_CURRENT%"=="" if exist "%USERPROFILE%\source\agent-kit\bin\agent-wrapper.ps1" set "AGENT_KIT_HOME_CURRENT=%USERPROFILE%\source\agent-kit"
+if "%AGENT_KIT_HOME_CURRENT%"=="" if exist "%USERPROFILE%\sources\agent-kit\bin\agent-wrapper.ps1" set "AGENT_KIT_HOME_CURRENT=%USERPROFILE%\sources\agent-kit"
+if "%AGENT_KIT_HOME_CURRENT%"=="" if exist "%USERPROFILE%\dev\agent-kit\bin\agent-wrapper.ps1" set "AGENT_KIT_HOME_CURRENT=%USERPROFILE%\dev\agent-kit"
+if "%AGENT_KIT_HOME_CURRENT%"=="" if exist "C:\tools\agent-kit\bin\agent-wrapper.ps1" set "AGENT_KIT_HOME_CURRENT=C:\tools\agent-kit"
+if "%AGENT_KIT_HOME_CURRENT%"=="" if exist "D:\tools\agent-kit\bin\agent-wrapper.ps1" set "AGENT_KIT_HOME_CURRENT=D:\tools\agent-kit"
+
+if "%AGENT_KIT_HOME_CURRENT%"=="" (
+  echo agent-kit wrapper: unable to locate AGENT_KIT_HOME 1>&2
+  echo set AGENT_KIT_HOME or re-run install-auto-bootstrap.ps1 1>&2
+  exit /b 1
+)
+
+set "AGENT_KIT_HOME=%AGENT_KIT_HOME_CURRENT%"
 where pwsh >nul 2>nul
 if %errorlevel%==0 (
   set "AGENT_KIT_PS=pwsh"
 ) else (
   set "AGENT_KIT_PS=powershell"
 )
-%AGENT_KIT_PS% -NoProfile -ExecutionPolicy Bypass -File "$WrapperSource" --agent "$cmd" %*
+%AGENT_KIT_PS% -NoProfile -ExecutionPolicy Bypass -File "%AGENT_KIT_HOME_CURRENT%\bin\agent-wrapper.ps1" --agent "$cmd" %*
 "@
     Set-Content -LiteralPath $cmdShim -Value $cmdContent -Encoding ascii
 
     $psShim = Join-Path $InstallDir "$cmd.ps1"
     $psContent = @"
 `$env:AGENT_KIT_WRAPPER_DIR = "$InstallDir"
-& "$WrapperSource" --agent "$cmd" @args
+`$candidateHomes = New-Object System.Collections.Generic.List[string]
+if (-not [string]::IsNullOrWhiteSpace(`$env:AGENT_KIT_HOME)) {
+  `$candidateHomes.Add(`$env:AGENT_KIT_HOME)
+}
+`$candidateHomes.Add("$AgentKitHome")
+`$candidateHomes.Add((Join-Path `$HOME "source/agent-kit"))
+`$candidateHomes.Add((Join-Path `$HOME "sources/agent-kit"))
+`$candidateHomes.Add((Join-Path `$HOME "dev/agent-kit"))
+`$candidateHomes.Add("C:\tools\agent-kit")
+`$candidateHomes.Add("D:\tools\agent-kit")
+
+`$resolvedHome = `$null
+foreach (`$candidate in `$candidateHomes) {
+  if ([string]::IsNullOrWhiteSpace(`$candidate)) {
+    continue
+  }
+  try {
+    `$fullCandidate = [System.IO.Path]::GetFullPath(`$candidate)
+  } catch {
+    continue
+  }
+  if (Test-Path -LiteralPath (Join-Path `$fullCandidate "bin/agent-wrapper.ps1") -PathType Leaf) {
+    `$resolvedHome = `$fullCandidate
+    break
+  }
+}
+
+if ([string]::IsNullOrWhiteSpace(`$resolvedHome)) {
+  Write-Error "agent-kit wrapper: unable to locate AGENT_KIT_HOME. Set AGENT_KIT_HOME or re-run install-auto-bootstrap.ps1."
+  exit 1
+}
+
+`$env:AGENT_KIT_HOME = `$resolvedHome
+& (Join-Path `$resolvedHome "bin/agent-wrapper.ps1") --agent "$cmd" @args
 exit `$LASTEXITCODE
 "@
     Set-Content -LiteralPath $psShim -Value $psContent
@@ -113,13 +163,18 @@ function Activate-ProfilePath {
   $start = "# >>> agent-kit auto-bootstrap >>>"
   $end = "# <<< agent-kit auto-bootstrap <<<"
 
-  if ((Test-Path -LiteralPath $profilePath) -and (Select-String -LiteralPath $profilePath -Pattern [regex]::Escape($start) -Quiet)) {
+  if ((Test-Path -LiteralPath $profilePath) -and (Select-String -LiteralPath $profilePath -Pattern ([regex]::Escape($start)) -Quiet)) {
     Write-Host "PowerShell profile already contains agent-kit block"
     return
   }
 
-  $block = @"
+$block = @"
 $start
+if (-not `$env:AGENT_KIT_HOME) {
+  if (Test-Path "$AgentKitHome\bootstrap\bootstrap.ps1") {
+    `$env:AGENT_KIT_HOME = "$AgentKitHome"
+  }
+}
 if (Test-Path "$InstallDir") {
   `$pathParts = `$env:PATH -split ';'
   if (`$pathParts -notcontains "$InstallDir") {
