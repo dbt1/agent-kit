@@ -19,6 +19,7 @@ $script:ProjectRoot = ""
 $script:AgentName = ""
 $script:ForcedProfile = ""
 $script:StrictIsolation = if ([string]::IsNullOrWhiteSpace($env:AGENT_KIT_STRICT_ISOLATION)) { "1" } else { $env:AGENT_KIT_STRICT_ISOLATION }
+$script:AllowCopyFallback = if ([string]::IsNullOrWhiteSpace($env:AGENT_KIT_ALLOW_COPY_FALLBACK)) { "1" } else { $env:AGENT_KIT_ALLOW_COPY_FALLBACK }
 
 function Show-Usage {
   Write-Host @"
@@ -172,7 +173,12 @@ function Set-ManagedLink {
       New-Item -ItemType HardLink -Path $LinkPath -Target $Target | Out-Null
       Log "[warn] symlink unavailable; created hardlink: $LinkPath"
     } catch {
-      throw "failed to create symlink or hardlink: $LinkPath -> $Target"
+      if ($script:AllowCopyFallback -eq "1") {
+        Copy-Item -LiteralPath $Target -Destination $LinkPath -Force
+        Log "[warn] link unavailable; copied file instead: $LinkPath"
+      } else {
+        throw "failed to create symlink or hardlink: $LinkPath -> $Target"
+      }
     }
   }
 }
@@ -526,10 +532,6 @@ function Main {
     return 0
   }
 
-  if (-not (Strict-IsolationCheck -ProjectPath $project)) {
-    return 2
-  }
-
   $markerDir = Join-Path $project ".agent-workflow"
   $stateFile = Join-Path $markerDir "state.env"
   if (-not $script:Force -and (Test-Path -LiteralPath $stateFile)) {
@@ -538,6 +540,10 @@ function Main {
       Log "[ok] already bootstrapped: $project"
       return 0
     }
+  }
+
+  if (-not (Strict-IsolationCheck -ProjectPath $project)) {
+    return 2
   }
 
   $profile = Detect-Profile -ProjectPath $project

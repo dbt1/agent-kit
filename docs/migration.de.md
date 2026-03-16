@@ -54,6 +54,20 @@ Zum bewussten Umgehen fuer manuelle Migrationslaeufe:
 powershell -NoProfile -File .\bootstrap\bootstrap.ps1 --project-root C:\pfad\zum\repo --no-strict --force
 ```
 
+## Windows-Link-Einschraenkungen
+
+Unter Windows versucht Bootstrap zuerst Symlinks, dann Hardlinks, dann
+Datei-Kopien.
+
+- Hardlinks funktionieren nur auf demselben Laufwerk (z. B. `C:` nach `C:`).
+- Liegt `agent-kit` auf `C:` und das Ziel-Repo auf `D:`, ist der
+  Hardlink-Fallback nicht moeglich.
+- In diesem Fall kann Bootstrap trotzdem erfolgreich mit Datei-Kopien abschliessen.
+
+Wenn Kopien verwendet wurden und spaeter `profiles/*.md` oder `SKILLS.md`
+geaendert werden, Bootstrap mit `--force` erneut ausfuehren, um Projektdateien
+zu aktualisieren.
+
 ## Rollback
 
 Rollback ist dateibasiert:

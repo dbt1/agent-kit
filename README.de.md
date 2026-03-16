@@ -83,6 +83,29 @@ Die angezeigten Pfade sollten auf das lokale Wrapper-Verzeichnis zeigen.
    - `workitems/`
    - `.agent-workflow/state.env`
 
+## Windows-Link-Verhalten
+
+Unter Windows versucht Bootstrap die Workflow-Dateien in dieser Reihenfolge:
+
+1. Symbolischer Link
+2. Hardlink (nur wenn `agent-kit` und Ziel-Repo auf demselben Laufwerk liegen)
+3. Normale Datei-Kopie als Fallback (Default)
+
+Damit funktioniert Bootstrap auch ohne Symlink-Rechte.
+
+Wenn der Copy-Fallback genutzt wird:
+
+- bleibt der Workflow im Alltag funktionsfaehig
+- spaetere Aenderungen an `profiles/*.md` oder `SKILLS.md` in `agent-kit`
+  werden nicht automatisch in bereits kopierte Projektdateien uebernommen
+- fuer ein Refresh Bootstrap erneut mit `--force` ausfuehren
+
+Um den Copy-Fallback auszuschalten und stattdessen hart zu fehlschlagen:
+
+```text
+AGENT_KIT_ALLOW_COPY_FALLBACK=0
+```
+
 ## Fehlerbehebung
 
 - Strikte-Isolation-Block:
@@ -93,12 +116,16 @@ Die angezeigten Pfade sollten auf das lokale Wrapper-Verzeichnis zeigen.
   `AGENT_KIT_REAL_GEMINI` auf den realen Executable-Pfad setzen.
 - Auto-Bootstrap einmalig deaktivieren:
   Befehl mit `AGENT_KIT_AUTOBOOTSTRAP=0` ausfuehren.
+- Windows-Symlink-Rechte fehlen:
+  Windows Developer Mode aktivieren oder PowerShell erhoeht starten, wenn echte
+  Symlinks statt Copy-Fallback gewuenscht sind.
 
 ## Konfiguration
 
 - `AGENT_KIT_HOME`: Pfad zu diesem Repository
 - `AGENT_KIT_AUTOBOOTSTRAP=0`: Auto-Bootstrap fuer einen Aufruf aus
 - `AGENT_KIT_STRICT_ISOLATION=1`: gemischte Legacy-Zustaende blockieren (Default)
+- `AGENT_KIT_ALLOW_COPY_FALLBACK=1`: Copy-Fallback erlauben, wenn Links nicht moeglich sind
 - `AGENT_KIT_REAL_CLAUDE`, `AGENT_KIT_REAL_CODEX`, `AGENT_KIT_REAL_GEMINI`:
   explizite Pfade zu echten Binaries
 

@@ -83,6 +83,29 @@ You should see command paths from the local wrapper install directory.
    - `workitems/`
    - `.agent-workflow/state.env`
 
+## Windows Link Behavior
+
+On Windows, bootstrap tries workflow file setup in this order:
+
+1. Symbolic link
+2. Hardlink (only if `agent-kit` and target repo are on the same drive)
+3. Regular file copy fallback (default)
+
+This means bootstrap still works even without symlink permissions.
+
+If copy fallback is used:
+
+- bootstrap is still functional for daily work
+- later changes to `profiles/*.md` or `SKILLS.md` in `agent-kit` do not
+  auto-update already copied project files
+- run bootstrap again with `--force` to refresh copied files
+
+To disable copy fallback and fail fast instead, set:
+
+```text
+AGENT_KIT_ALLOW_COPY_FALLBACK=0
+```
+
 ## Troubleshooting
 
 - Strict isolation block:
@@ -93,12 +116,16 @@ You should see command paths from the local wrapper install directory.
   `AGENT_KIT_REAL_GEMINI` to the real executable path.
 - Disable auto-bootstrap once:
   Run command with `AGENT_KIT_AUTOBOOTSTRAP=0`.
+- Windows symlink permission issue:
+  Enable Windows Developer Mode or run an elevated shell if you want true
+  symlinks instead of copy fallback.
 
 ## Configuration
 
 - `AGENT_KIT_HOME`: path to this repository
 - `AGENT_KIT_AUTOBOOTSTRAP=0`: disable auto-bootstrap for one command
 - `AGENT_KIT_STRICT_ISOLATION=1`: block mixed legacy state (default)
+- `AGENT_KIT_ALLOW_COPY_FALLBACK=1`: allow copy fallback if links are not possible
 - `AGENT_KIT_REAL_CLAUDE`, `AGENT_KIT_REAL_CODEX`, `AGENT_KIT_REAL_GEMINI`:
   explicit real binary paths
 
