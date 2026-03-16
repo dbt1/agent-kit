@@ -4,25 +4,41 @@ Sprache: [English](README.md) | [Deutsch](README.de.md)
 
 Generisches Bootstrap-Kit fuer agentengesteuerte Repository-Workflows.
 
-## Was es macht
+## Was Ist Das
 
-Beim ersten Aufruf von `claude`, `codex` oder `gemini` in einem Git-Repository
-legt `agent-kit` automatisch eine konsistente Workflow-Struktur an:
+`agent-kit` installiert kleine Wrapper-Befehle (`claude`, `codex`, `gemini`),
+die beim ersten Agent-Aufruf in einem Git-Repository automatisch eine
+konsistente Workflow-Struktur anlegen.
 
-- `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` (Profil-Symlinks)
-- `MEMORY.md` (projektspezifischer Memory-Symlink)
-- `SKILLS.md` (Skill-Uebersicht)
+Bootstrap erzeugt:
+
+- `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` (Profil-Links)
+- `MEMORY.md` (Projekt-Memory-Link)
+- `SKILLS.md` (Skills-Link)
 - `workitems/INDEX.md` und `workitems/template.md`
 - `.agent-workflow/state.env` Marker
 
-## Designziele
+## Voraussetzungen
 
-- Strikte Isolation: verhindert gemischte Legacy-/Neu-Zustaende
-- Idempotenz
-- Generische Defaults (kein Domain-Lock-in)
-- Optionales Profil-Mapping ueber Konfigurationsdatei
+Vor der Installation sicherstellen:
 
-## Schnellstart
+1. `git` ist installiert.
+2. Mindestens eine echte Agent-CLI ist installiert und lauffaehig (`claude`,
+   `codex` oder `gemini`).
+3. Du nutzt entweder:
+   - Linux / WSL mit Bash
+   - Windows mit PowerShell
+
+## Installation (Schritt fuer Schritt)
+
+### 1. Repository klonen
+
+```bash
+git clone <deine-agent-kit-repo-url> agent-kit
+cd agent-kit
+```
+
+### 2. Wrapper-Befehle installieren
 
 Linux / WSL:
 
@@ -38,46 +54,78 @@ powershell -NoProfile -File .\bootstrap\install-auto-bootstrap.ps1 --activate-pr
 . $PROFILE
 ```
 
-Danach `claude`, `codex` oder `gemini` im gewuenschten Git-Repo starten.
+### 3. Installation pruefen
 
-## Umgebung
+Linux / WSL:
 
-- `AGENT_KIT_HOME`: absoluter Pfad zum Repo (wird im Wrapper aufgeloest)
-- `AGENT_KIT_AUTOBOOTSTRAP=0`: Auto-Bootstrap fuer einen Aufruf deaktivieren
+```bash
+command -v codex
+command -v claude
+command -v gemini
+```
+
+Windows PowerShell:
+
+```powershell
+Get-Command codex
+Get-Command claude
+Get-Command gemini
+```
+
+Die angezeigten Pfade sollten auf das lokale Wrapper-Verzeichnis zeigen.
+
+## Erste Nutzung In Einem Projekt
+
+1. Beliebiges Git-Repository oeffnen.
+2. Einen Agent-Befehl starten (z. B. `codex`).
+3. Pruefen, dass diese Dateien angelegt wurden:
+   - `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `MEMORY.md`, `SKILLS.md`
+   - `workitems/`
+   - `.agent-workflow/state.env`
+
+## Fehlerbehebung
+
+- Strikte-Isolation-Block:
+  Wenn unmanaged Workflow-Dateien gemeldet werden, in
+  [Migration und Rollback](docs/migration.de.md) sauber migrieren.
+- Wrapper findet den echten Befehl nicht:
+  `AGENT_KIT_REAL_CLAUDE`, `AGENT_KIT_REAL_CODEX` oder
+  `AGENT_KIT_REAL_GEMINI` auf den realen Executable-Pfad setzen.
+- Auto-Bootstrap einmalig deaktivieren:
+  Befehl mit `AGENT_KIT_AUTOBOOTSTRAP=0` ausfuehren.
+
+## Konfiguration
+
+- `AGENT_KIT_HOME`: Pfad zu diesem Repository
+- `AGENT_KIT_AUTOBOOTSTRAP=0`: Auto-Bootstrap fuer einen Aufruf aus
 - `AGENT_KIT_STRICT_ISOLATION=1`: gemischte Legacy-Zustaende blockieren (Default)
 - `AGENT_KIT_REAL_CLAUDE`, `AGENT_KIT_REAL_CODEX`, `AGENT_KIT_REAL_GEMINI`:
-  explizite Binary-Pfade fuer Wrapper
+  explizite Pfade zu echten Binaries
 
-## Profil-Mapping
-
-Optionale Pfad-Praefixe koennen in `config/project-map.tsv` hinterlegt werden:
+Optionales Profil-Mapping per Pfad-Praefix:
 
 ```text
 /home/user/sources/neutrino	custom-profile
 /home/user/work	generic
 ```
 
+Datei: `config/project-map.tsv`  
 Format: `<absolutes-praefix><TAB><profilname>`
 
-## Befehle
+## Befehlsreferenz
 
-- `./bootstrap/bootstrap.sh` - aktuelles Repo oder `--project-root` bootstrappen
-- `./bootstrap/bootstrap-all.sh` - alle Repos unter gegebenen Wurzeln bootstrappen
-- `./bootstrap/install-auto-bootstrap.sh` - Wrapper installieren und aktivieren
-- `powershell -NoProfile -File .\bootstrap\bootstrap.ps1` - nativer Windows-Bootstrap
-- `powershell -NoProfile -File .\bootstrap\bootstrap-all.ps1` - nativer Windows-Bootstrap fuer mehrere Repos
-- `powershell -NoProfile -File .\bootstrap\install-auto-bootstrap.ps1` - native Wrapper-Installation unter Windows
-- `./scripts/ci-smoke.sh` - lokale Syntax- und Smoke-Validierung
-- `powershell -NoProfile -File .\scripts\ci-smoke.ps1` - lokale Windows-Syntax- und Smoke-Validierung
+- `./bootstrap/bootstrap.sh`: aktuelles Repo oder `--project-root` bootstrappen
+- `./bootstrap/bootstrap-all.sh`: alle Repos unter Root-Pfaden bootstrappen
+- `./bootstrap/install-auto-bootstrap.sh`: Bash-Wrapper installieren
+- `powershell -NoProfile -File .\bootstrap\bootstrap.ps1`: Windows-Bootstrap
+- `powershell -NoProfile -File .\bootstrap\bootstrap-all.ps1`: Windows-Bootstrap fuer mehrere Repos
+- `powershell -NoProfile -File .\bootstrap\install-auto-bootstrap.ps1`: Windows-Wrapper installieren
+- `./scripts/ci-smoke.sh`: Bash-Smoke-Checks
+- `powershell -NoProfile -File .\scripts\ci-smoke.ps1`: PowerShell-Smoke-Checks
 
-## Projektstatus-Datei
+## Dokumentations-Uebersicht
 
-`state.env` liegt in `.agent-workflow/` und enthaelt Bootstrap-Version,
-Profil und Pfadinformationen.
-
-## Migration und Release
-
-- `docs/migration.md` - sichere Migration und Rollback
-- `docs/release.md` - Releaseprozess und Versionierung
-- `CHANGELOG.md` - Aenderungshistorie
-- `LICENSE` - MIT
+- [Migration und Rollback](docs/migration.de.md) ([EN](docs/migration.md))
+- [Release-Prozess](docs/release.de.md) ([EN](docs/release.md))
+- [Aenderungshistorie](CHANGELOG.md)
+- [Lizenz](LICENSE)
