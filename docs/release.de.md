@@ -5,23 +5,24 @@ Sprache: [English](release.md) | [Deutsch](release.de.md)
 ## Ziele
 
 - Reproduzierbare Releases
-- Stabiles Bootstrap-Verhalten über Versionen
-- Keine ungetesteten Shell-Änderungen ausliefern
+- Stabiles Bootstrap-Verhalten ueber Versionen
+- Keine ungetesteten Shell-Aenderungen ausliefern
 
 ## Versionierung
 
 Semantic Versioning verwenden (`MAJOR.MINOR.PATCH`).
 
-- `MAJOR`: Breaking Changes im Bootstrap-Verhalten oder Dateiverträgen
-- `MINOR`: abwärtskompatible Erweiterungen
+- `MAJOR`: Breaking Changes im Bootstrap-Verhalten oder Dateivertraegen
+- `MINOR`: abwaertskompatible Erweiterungen
 - `PATCH`: Bugfixes und operative Doku-Korrekturen
 
 ## Pre-Release-Checkliste
 
-1. Lokale Checks ausführen:
+1. Lokale Checks ausfuehren:
    - `bash -n` auf allen Shell-Skripten
    - `scripts/ci-smoke.sh`
-2. Dokumentation auf Konsistenz prüfen:
+   - `powershell -NoProfile -File .\scripts\ci-smoke.ps1`
+2. Dokumentation auf Konsistenz pruefen:
    - `README.md`
    - `docs/migration.md`
    - `CHANGELOG.md`
@@ -37,5 +38,5 @@ git push origin v0.1.0
 
 ## Nach dem Release
 
-- Prüfen, dass GitHub Actions für den Release-Commit grün sind
-- Wichtige Änderungen und Migrationshinweise kommunizieren
+- Pruefen, dass GitHub Actions fuer den Release-Commit gruen sind
+- Wichtige Aenderungen und Migrationshinweise kommunizieren

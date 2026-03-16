@@ -5,7 +5,7 @@ on:
   pull_request:
 
 jobs:
-  shell-checks:
+  shell-checks-linux:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -14,3 +14,13 @@ jobs:
       - name: Run CI smoke script
         run: |
           bash scripts/ci-smoke.sh
+
+  shell-checks-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run CI smoke script (PowerShell)
+        run: |
+          powershell -NoProfile -File scripts/ci-smoke.ps1

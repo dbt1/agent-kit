@@ -18,10 +18,18 @@ This guide is for repositories that already contain `AGENTS.md`, `CLAUDE.md`,
 ./bootstrap/bootstrap.sh --project-root /path/to/repo --dry-run
 ```
 
+```powershell
+powershell -NoProfile -File .\bootstrap\bootstrap.ps1 --project-root C:\path\to\repo --dry-run
+```
+
 ## Example: apply
 
 ```bash
 ./bootstrap/bootstrap.sh --project-root /path/to/repo --force
+```
+
+```powershell
+powershell -NoProfile -File .\bootstrap\bootstrap.ps1 --project-root C:\path\to\repo --force
 ```
 
 Use `--force` only after verifying planned changes.
@@ -40,6 +48,10 @@ To bypass this for manual migration runs only:
 
 ```bash
 ./bootstrap/bootstrap.sh --project-root /path/to/repo --no-strict --force
+```
+
+```powershell
+powershell -NoProfile -File .\bootstrap\bootstrap.ps1 --project-root C:\path\to\repo --no-strict --force
 ```
 
 ## Rollback

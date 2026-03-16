@@ -21,6 +21,7 @@ Use Semantic Versioning (`MAJOR.MINOR.PATCH`).
 1. Run local checks:
    - `bash -n` on all shell scripts
    - `scripts/ci-smoke.sh`
+   - `powershell -NoProfile -File .\scripts\ci-smoke.ps1`
 2. Confirm docs are aligned:
    - `README.md`
    - `docs/migration.md`

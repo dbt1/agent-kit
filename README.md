@@ -24,9 +24,18 @@ can automatically bootstrap a consistent workflow layout:
 
 ## Quickstart
 
+Linux / WSL:
+
 ```bash
 ./bootstrap/install-auto-bootstrap.sh --activate-bashrc
 source ~/.bashrc
+```
+
+Native Windows PowerShell:
+
+```powershell
+powershell -NoProfile -File .\bootstrap\install-auto-bootstrap.ps1 --activate-profile
+. $PROFILE
 ```
 
 Then call `claude`, `codex`, or `gemini` inside any Git repo.
@@ -55,7 +64,11 @@ Format: `<absolute-path-prefix><TAB><profile-name>`
 - `./bootstrap/bootstrap.sh` - bootstrap current repo or explicit `--project-root`
 - `./bootstrap/bootstrap-all.sh` - bootstrap all repos under roots
 - `./bootstrap/install-auto-bootstrap.sh` - install and activate wrappers
+- `powershell -NoProfile -File .\bootstrap\bootstrap.ps1` - native Windows bootstrap
+- `powershell -NoProfile -File .\bootstrap\bootstrap-all.ps1` - native Windows bulk bootstrap
+- `powershell -NoProfile -File .\bootstrap\install-auto-bootstrap.ps1` - native Windows wrapper install
 - `./scripts/ci-smoke.sh` - local syntax + smoke validation
+- `powershell -NoProfile -File .\scripts\ci-smoke.ps1` - local Windows syntax + smoke validation
 
 ## Project status files
 
