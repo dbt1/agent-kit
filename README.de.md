@@ -74,6 +74,29 @@ Get-Command gemini
 
 Die angezeigten Pfade sollten auf das lokale Wrapper-Verzeichnis zeigen.
 
+## Hinweise Zum Installationsort
+
+- `agent-kit` selbst kann an beliebiger Stelle liegen, z. B.:
+  - `C:\Users\<user>\source\agent-kit`
+  - `D:\tools\agent-kit`
+- Wrapper-Befehle werden standardmaessig pro Benutzer installiert:
+  - Windows: `%USERPROFILE%\AppData\Local\agent-kit\bin`
+  - Linux / WSL: `$HOME/.local/share/agent-kit/bin`
+- Wrapper speichern den absoluten Pfad zur aktuellen `agent-kit`-Installation.
+  Wenn `agent-kit` spaeter in einen anderen Ordner verschoben wird, den
+  Installer erneut ausfuehren.
+
+Benutzerdefiniertes Wrapper-Ziel:
+
+```text
+AGENT_KIT_INSTALL_DIR=<custom-bin-dir>
+```
+
+Danach Install-Skript erneut ausfuehren:
+
+- `./bootstrap/install-auto-bootstrap.sh` (Linux / WSL)
+- `powershell -NoProfile -File .\bootstrap\install-auto-bootstrap.ps1` (Windows)
+
 ## Erste Nutzung In Einem Projekt
 
 1. Beliebiges Git-Repository oeffnen.

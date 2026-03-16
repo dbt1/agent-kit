@@ -74,6 +74,28 @@ Get-Command gemini
 
 You should see command paths from the local wrapper install directory.
 
+## Install Location Notes
+
+- `agent-kit` itself can be cloned anywhere, for example:
+  - `C:\Users\<user>\source\agent-kit`
+  - `D:\tools\agent-kit`
+- Wrapper commands are installed per user by default:
+  - Windows: `%USERPROFILE%\AppData\Local\agent-kit\bin`
+  - Linux / WSL: `$HOME/.local/share/agent-kit/bin`
+- Wrappers store the absolute path to the current `agent-kit` install.
+  If you move `agent-kit` to a different folder later, run installer again.
+
+Custom wrapper install location:
+
+```text
+AGENT_KIT_INSTALL_DIR=<custom-bin-dir>
+```
+
+Then re-run install script:
+
+- `./bootstrap/install-auto-bootstrap.sh` (Linux / WSL)
+- `powershell -NoProfile -File .\bootstrap\install-auto-bootstrap.ps1` (Windows)
+
 ## First Use In A Project
 
 1. Open any Git repository.
