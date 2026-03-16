@@ -93,14 +93,6 @@ function Parse-Args {
         $script:AgentName = $InputArgs[$i + 1]
         $i += 2
       }
-      "--help" {
-        Show-Usage
-        return $false
-      }
-      "-h" {
-        Show-Usage
-        return $false
-      }
       "--" {
         for ($j = $i + 1; $j -lt $InputArgs.Count; $j++) {
           $script:ForwardArgs.Add($InputArgs[$j])
