@@ -106,14 +106,45 @@ Danach Install-Skript erneut ausfuehren:
 - `./bootstrap/install-auto-bootstrap.sh` (Linux / WSL)
 - `powershell -NoProfile -File .\bootstrap\install-auto-bootstrap.ps1` (Windows)
 
-## Erste Nutzung In Einem Projekt
+## Projektordner Anbinden
 
-1. Beliebiges Git-Repository oeffnen.
-2. Einen Agent-Befehl starten (z. B. `codex`).
-3. Pruefen, dass diese Dateien angelegt wurden:
+Es gibt keine separate Registrierungsdatei pro Projekt. Ein Projektordner gilt
+als angebunden, sobald Bootstrap dort einmal erfolgreich gelaufen ist und
+`.agent-workflow/state.env` existiert.
+
+### Weg A: Automatisch ueber Wrapper (empfohlen)
+
+1. Sicherstellen, dass der Projektordner ein Git-Repository ist.
+   Falls noch keines existiert: `git init`.
+2. In den Projektordner wechseln.
+3. `codex`, `claude` oder `gemini` starten.
+4. Der Wrapper triggert Bootstrap automatisch.
+5. Pruefen, dass diese Dateien angelegt wurden:
    - `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `MEMORY.md`, `SKILLS.md`
    - `workitems/`
    - `.agent-workflow/state.env`
+
+### Weg B: Manuell per Bootstrap-Skript
+
+Nuetzlich fuer CI, Migrationsschritte oder wenn Wrapper nicht im PATH liegen.
+
+Linux / WSL:
+
+```bash
+AGENT_KIT_HOME=/abs/pfad/zu/agent-kit \
+/abs/pfad/zu/agent-kit/bootstrap/bootstrap.sh \
+  --project-root /abs/pfad/zum/projekt \
+  --agent codex
+```
+
+Windows PowerShell:
+
+```powershell
+$env:AGENT_KIT_HOME = "C:\abs\path\to\agent-kit"
+powershell -NoProfile -File C:\abs\path\to\agent-kit\bootstrap\bootstrap.ps1 `
+  --project-root C:\abs\path\to\project `
+  --agent codex
+```
 
 ## Windows-Link-Verhalten
 

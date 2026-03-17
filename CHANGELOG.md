@@ -23,6 +23,8 @@ Versioning.
   for more robust Git root resolution
 - Generic workflow guidance now includes reviewing relevant GitHub checks
   (Actions run status) before documenting completion
+- README documentation now explicitly explains how a project folder gets
+  connected to `agent-kit` (automatic wrapper path vs manual bootstrap path)
 
 ## [0.1.0] - 2026-03-13
 
