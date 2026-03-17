@@ -14,9 +14,11 @@ bash -n bootstrap/install-auto-bootstrap.sh
 # 2) Bootstrap smoke test in clean repo
 TMP_REPO="$(mktemp -d)"
 TMP_BLOCK="$(mktemp -d)"
+TMP_DEFER="$(mktemp -d)"
 LOG_SMOKE="$(mktemp)"
 LOG_STRICT="$(mktemp)"
-trap 'rm -rf "$TMP_REPO" "$TMP_BLOCK" "$LOG_SMOKE" "$LOG_STRICT"' EXIT
+LOG_DEFER="$(mktemp)"
+trap 'rm -rf "$TMP_REPO" "$TMP_BLOCK" "$TMP_DEFER" "$LOG_SMOKE" "$LOG_STRICT" "$LOG_DEFER"' EXIT
 
 git -C "$TMP_REPO" init -q
 
@@ -51,7 +53,42 @@ for p in \
   check_path "$p"
 done
 
-# 3) Strict isolation block test
+# 3) Deferred bootstrap if folder is not a git repo yet
+if ! AGENT_KIT_HOME="$ROOT_DIR" AGENT_KIT_STRICT_ISOLATION=1 \
+  ./bootstrap/bootstrap.sh --project-root "$TMP_DEFER" >"$LOG_DEFER" 2>&1; then
+  echo "deferred bootstrap should not fail in non-git directory" >&2
+  cat "$LOG_DEFER" >&2
+  exit 1
+fi
+
+if [ -e "$TMP_DEFER/.agent-workflow/state.env" ]; then
+  echo "state file should not exist before git init" >&2
+  find "$TMP_DEFER" -maxdepth 3 -print >&2
+  exit 1
+fi
+
+if ! grep -Eq "bootstrap deferred|not in a git repository" "$LOG_DEFER"; then
+  echo "expected deferred bootstrap message missing" >&2
+  cat "$LOG_DEFER" >&2
+  exit 1
+fi
+
+git -C "$TMP_DEFER" init -q
+if ! AGENT_KIT_HOME="$ROOT_DIR" AGENT_KIT_STRICT_ISOLATION=1 \
+  ./bootstrap/bootstrap.sh --project-root "$TMP_DEFER" >"$LOG_DEFER" 2>&1; then
+  echo "bootstrap after git init failed" >&2
+  cat "$LOG_DEFER" >&2
+  exit 1
+fi
+
+if [ ! -e "$TMP_DEFER/.agent-workflow/state.env" ]; then
+  echo "state file missing after git init bootstrap" >&2
+  cat "$LOG_DEFER" >&2
+  find "$TMP_DEFER" -maxdepth 3 -print >&2
+  exit 1
+fi
+
+# 4) Strict isolation block test
 git -C "$TMP_BLOCK" init -q
 echo "legacy" > "$TMP_BLOCK/AGENTS.md"
 

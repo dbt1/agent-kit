@@ -34,6 +34,12 @@ log() {
   fi
 }
 
+log_err() {
+  if [ "$QUIET" -eq 0 ]; then
+    printf '%s\n' "$*" >&2
+  fi
+}
+
 run_cmd() {
   if [ "$DRY_RUN" -eq 1 ]; then
     log "[dry-run] $*"
@@ -91,16 +97,18 @@ sanitize_name() {
 }
 
 detect_project_root() {
+  local probe
   if [ -n "$PROJECT_ROOT" ]; then
-    if [ -d "$PROJECT_ROOT/.git" ] || [ -f "$PROJECT_ROOT/.git" ]; then
-      (cd "$PROJECT_ROOT" && pwd)
-      return 0
+    if [ ! -d "$PROJECT_ROOT" ]; then
+      log_err "[warn] --project-root is not a directory: $PROJECT_ROOT"
+      return 1
     fi
-    log "[warn] --project-root is not a git repository: $PROJECT_ROOT"
-    return 1
+    probe="$PROJECT_ROOT"
+  else
+    probe="$PWD"
   fi
 
-  git rev-parse --show-toplevel 2>/dev/null || return 1
+  git -C "$probe" rev-parse --show-toplevel 2>/dev/null || return 1
 }
 
 FORCED_PROFILE=""
@@ -295,7 +303,14 @@ main() {
 
   local project
   if ! project="$(detect_project_root)"; then
-    [ "$QUIET" -eq 1 ] || log "[skip] not inside a git repository"
+    if [ "$QUIET" -eq 0 ]; then
+      if [ -n "$PROJECT_ROOT" ]; then
+        log "[skip] bootstrap deferred: '$PROJECT_ROOT' is not a git repository yet"
+      else
+        log "[skip] bootstrap deferred: current directory is not in a git repository"
+      fi
+      log "[hint] bootstrap will run automatically on the next wrapped agent call after 'git init'"
+    fi
     exit 0
   fi
 

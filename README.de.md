@@ -18,6 +18,9 @@ Bootstrap erzeugt:
 - `workitems/INDEX.md` und `workitems/template.md`
 - `.agent-workflow/state.env` Marker
 
+Außerhalb eines Git-Repositories wird der Bootstrap sauber zurückgestellt und
+nach `git init` beim nächsten Wrapper-Aufruf automatisch erneut versucht.
+
 ## Voraussetzungen
 
 Vor der Installation sicherstellen:

@@ -16,6 +16,12 @@ Versioning.
 - CI workflow for shell syntax and smoke checks
 - Migration/rollback documentation for existing repositories
 
+### Changed
+- Bootstrap now defers cleanly in non-Git directories and retries automatically
+  after `git init` on the next wrapped agent call
+- `--project-root` detection now uses `git -C <path> rev-parse --show-toplevel`
+  for more robust Git root resolution
+
 ## [0.1.0] - 2026-03-13
 
 ### Added

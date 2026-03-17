@@ -18,6 +18,9 @@ Bootstrap creates:
 - `workitems/INDEX.md` and `workitems/template.md`
 - `.agent-workflow/state.env` marker
 
+If called outside a Git repository, bootstrap is deferred gracefully and retried
+automatically after `git init` on the next wrapped agent call.
+
 ## Prerequisites
 
 Before installation, ensure:
