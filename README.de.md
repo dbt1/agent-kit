@@ -6,9 +6,9 @@ Generisches Bootstrap-Kit fuer agentengesteuerte Repository-Workflows.
 
 ## Was Ist Das
 
-`agent-kit` installiert kleine Wrapper-Befehle (`claude`, `codex`, `gemini`),
-die beim ersten Agent-Aufruf in einem Git-Repository automatisch eine
-konsistente Workflow-Struktur anlegen.
+`agent-kit` installiert Wrapper-Befehle fuer konfigurierbare Agent-Namen
+(Default: `codex`, `claude`, `gemini`), die beim ersten Agent-Aufruf in einem
+Git-Repository automatisch eine konsistente Workflow-Struktur anlegen.
 
 Bootstrap erzeugt:
 
@@ -26,8 +26,7 @@ nach `git init` beim nächsten Wrapper-Aufruf automatisch erneut versucht.
 Vor der Installation sicherstellen:
 
 1. `git` ist installiert.
-2. Mindestens eine echte Agent-CLI ist installiert und lauffaehig (`claude`,
-   `codex` oder `gemini`).
+2. Mindestens eine echte Agent-CLI ist installiert und lauffaehig.
 3. Du nutzt entweder:
    - Linux / WSL mit Bash
    - Windows mit PowerShell
@@ -77,6 +76,9 @@ Get-Command gemini
 
 Die angezeigten Pfade sollten auf das lokale Wrapper-Verzeichnis zeigen.
 
+Standardmaessig pruefst du `codex`, `claude` und `gemini`. Mit eigener
+Agent-Liste pruefst du stattdessen deine konfigurierten Namen.
+
 ## Hinweise Zum Installationsort
 
 - `agent-kit` selbst kann an beliebiger Stelle liegen, z. B.:
@@ -105,6 +107,19 @@ Danach Install-Skript erneut ausfuehren:
 
 - `./bootstrap/install-auto-bootstrap.sh` (Linux / WSL)
 - `powershell -NoProfile -File .\bootstrap\install-auto-bootstrap.ps1` (Windows)
+
+## Agenten-Liste
+
+- Sample-Liste im Repo: `config/agents.list.sample`
+- Reale Liste fuer den Installer:
+  - `AGENT_KIT_AGENT_LIST` (falls gesetzt)
+  - sonst `config/agents.list` in `AGENT_KIT_HOME`, wenn beschreibbar
+  - sonst Fallback `~/.config/agent-kit/agents.list`
+- Beim ersten Install wird die reale Liste automatisch aus der Sample-Liste
+  initialisiert und auf aktuell im PATH erkannte Commands gefiltert
+  (Fallback: Sample-Defaults).
+- Fuer zusaetzliche Commands Eintrag in der realen Liste setzen und Installer
+  erneut ausfuehren.
 
 ## Projektordner Anbinden
 
@@ -178,8 +193,8 @@ AGENT_KIT_ALLOW_COPY_FALLBACK=0
   Wenn unmanaged Workflow-Dateien gemeldet werden, in
   [Migration und Rollback](docs/migration.de.md) sauber migrieren.
 - Wrapper findet den echten Befehl nicht:
-  `AGENT_KIT_REAL_CLAUDE`, `AGENT_KIT_REAL_CODEX` oder
-  `AGENT_KIT_REAL_GEMINI` auf den realen Executable-Pfad setzen.
+  `AGENT_KIT_REAL_<AGENT_NAME>` (Uppercase, Nicht-Alnum als `_`) auf den realen
+  Executable-Pfad setzen. Beispiel: `AGENT_KIT_REAL_CODEX`.
 - Auto-Bootstrap einmalig deaktivieren:
   Befehl mit `AGENT_KIT_AUTOBOOTSTRAP=0` ausfuehren.
 - Windows-Symlink-Rechte fehlen:
@@ -189,12 +204,12 @@ AGENT_KIT_ALLOW_COPY_FALLBACK=0
 ## Konfiguration
 
 - `AGENT_KIT_HOME`: Pfad zu diesem Repository
+- `AGENT_KIT_AGENT_LIST`: expliziter Pfad zur Agent-Command-Liste
 - `AGENT_KIT_AUTOBOOTSTRAP=0`: Auto-Bootstrap fuer einen Aufruf aus
 - `AGENT_KIT_AUTOBOOTSTRAP_FORCE_ROOTS`: Liste von Projekt-Roots mit Auto-Refresh via `--force` (Windows `;`, Linux/WSL `:` getrennt; in der Praxis vor allem fuer Windows-Copy-Fallback sinnvoll)
 - `AGENT_KIT_STRICT_ISOLATION=1`: gemischte Legacy-Zustaende blockieren (Default)
 - `AGENT_KIT_ALLOW_COPY_FALLBACK=1`: Copy-Fallback erlauben, wenn Links nicht moeglich sind
-- `AGENT_KIT_REAL_CLAUDE`, `AGENT_KIT_REAL_CODEX`, `AGENT_KIT_REAL_GEMINI`:
-  explizite Pfade zu echten Binaries
+- `AGENT_KIT_REAL_<AGENT_NAME>`: expliziter Binary-Pfad je Command-Name
 
 Optionales Profil-Mapping per Pfad-Praefix:
 

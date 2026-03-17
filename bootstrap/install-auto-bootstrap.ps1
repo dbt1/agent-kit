@@ -17,14 +17,24 @@ $InstallDir = if ([string]::IsNullOrWhiteSpace($env:AGENT_KIT_INSTALL_DIR)) {
 } else {
   $env:AGENT_KIT_INSTALL_DIR
 }
+$AgentListSample = Join-Path $AgentKitHome "config/agents.list.sample"
+$PreferredAgentListFile = Join-Path $AgentKitHome "config/agents.list"
+$FallbackAgentListFile = Join-Path $HOME ".config/agent-kit/agents.list"
+$AgentListFile = ""
+$ConfiguredAgents = New-Object System.Collections.Generic.List[string]
 $ActivateProfile = $false
 
 function Show-Usage {
   Write-Host @"
 Usage: $ScriptName [--activate-profile]
 
-Installs wrappers for claude/codex/gemini into:
+Installs wrappers for configured agent commands into:
   $InstallDir
+
+Agent list file (first match wins):
+  AGENT_KIT_AGENT_LIST (if set)
+  $PreferredAgentListFile (if writable)
+  $FallbackAgentListFile (fallback)
 "@
 }
 
@@ -67,6 +77,173 @@ function Parse-Args {
   return $true
 }
 
+function Is-ValidAgentName {
+  param([string]$Value)
+  if ([string]::IsNullOrWhiteSpace($Value)) {
+    return $false
+  }
+  return $Value -match '^[A-Za-z0-9._+-]+$'
+}
+
+function Add-AgentUnique {
+  param(
+    [System.Collections.Generic.List[string]]$List,
+    [string]$Name
+  )
+  if ($List.Contains($Name)) {
+    return
+  }
+  $List.Add($Name)
+}
+
+function Get-AgentEntriesFromFile {
+  param([string]$PathValue)
+
+  if (-not (Test-Path -LiteralPath $PathValue -PathType Leaf)) {
+    return @()
+  }
+
+  $entries = New-Object System.Collections.Generic.List[string]
+  foreach ($raw in Get-Content -LiteralPath $PathValue) {
+    $line = [string]$raw
+    $line = [regex]::Replace($line, "\r$", "")
+    $line = [regex]::Replace($line, "\s*#.*$", "")
+    $line = $line.Trim()
+    if (-not [string]::IsNullOrWhiteSpace($line)) {
+      $entries.Add($line)
+    }
+  }
+  return @($entries)
+}
+
+function Resolve-AgentListFilePath {
+  if (-not [string]::IsNullOrWhiteSpace($env:AGENT_KIT_AGENT_LIST)) {
+    return $env:AGENT_KIT_AGENT_LIST
+  }
+
+  if (Test-Path -LiteralPath $PreferredAgentListFile -PathType Leaf) {
+    return $PreferredAgentListFile
+  }
+
+  $preferredDir = Split-Path -Parent $PreferredAgentListFile
+  try {
+    New-Item -ItemType Directory -Path $preferredDir -Force | Out-Null
+    $probe = Join-Path $preferredDir (".agent-kit-write-probe-" + [System.Guid]::NewGuid().ToString("N"))
+    New-Item -ItemType File -Path $probe -Force | Out-Null
+    Remove-Item -LiteralPath $probe -Force -ErrorAction SilentlyContinue
+    return $PreferredAgentListFile
+  } catch {
+    return $FallbackAgentListFile
+  }
+}
+
+function Resolve-RealCommandPath {
+  param([string]$CommandName)
+
+  $agentKitBin = [System.IO.Path]::GetFullPath((Join-Path $AgentKitHome "bin"))
+  $installDirFull = [System.IO.Path]::GetFullPath($InstallDir)
+  $wrapperSourceFull = [System.IO.Path]::GetFullPath($WrapperSource)
+  $candidates = Get-Command -Name $CommandName -All -ErrorAction SilentlyContinue
+  foreach ($candidate in $candidates) {
+    if ($candidate.CommandType -notin @("Application", "ExternalScript")) {
+      continue
+    }
+    $path = $candidate.Path
+    if ([string]::IsNullOrWhiteSpace($path) -or -not (Test-Path -LiteralPath $path -PathType Leaf)) {
+      continue
+    }
+
+    $fullPath = [System.IO.Path]::GetFullPath($path)
+    if ($fullPath.Equals($wrapperSourceFull, [System.StringComparison]::OrdinalIgnoreCase)) {
+      continue
+    }
+
+    $installPrefix = "$installDirFull\"
+    if ($fullPath.StartsWith($installPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+      continue
+    }
+
+    $agentKitPrefix = "$agentKitBin\"
+    if ($fullPath.StartsWith($agentKitPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+      continue
+    }
+
+    return $fullPath
+  }
+
+  return $null
+}
+
+function Initialize-AgentListFile {
+  if (Test-Path -LiteralPath $script:AgentListFile -PathType Leaf) {
+    return
+  }
+
+  $candidates = New-Object System.Collections.Generic.List[string]
+  foreach ($entry in (Get-AgentEntriesFromFile -PathValue $AgentListSample)) {
+    if (-not (Is-ValidAgentName -Value $entry)) {
+      Write-Warning "ignoring invalid agent name in sample: $entry"
+      continue
+    }
+    Add-AgentUnique -List $candidates -Name $entry
+  }
+
+  if ($candidates.Count -eq 0) {
+    foreach ($fallback in @("codex", "claude", "gemini")) {
+      Add-AgentUnique -List $candidates -Name $fallback
+    }
+  }
+
+  $detected = New-Object System.Collections.Generic.List[string]
+  foreach ($candidate in $candidates) {
+    if (-not [string]::IsNullOrWhiteSpace((Resolve-RealCommandPath -CommandName $candidate))) {
+      Add-AgentUnique -List $detected -Name $candidate
+    }
+  }
+
+  $selected = if ($detected.Count -gt 0) { $detected } else { $candidates }
+  $listDir = Split-Path -Parent $script:AgentListFile
+  if ([string]::IsNullOrWhiteSpace($listDir)) {
+    $listDir = "."
+  }
+  New-Item -ItemType Directory -Path $listDir -Force | Out-Null
+
+  $lines = New-Object System.Collections.Generic.List[string]
+  $lines.Add("# agent-kit local agent command list")
+  $lines.Add("# generated: $(Get-Date -Format o)")
+  $lines.Add("# one command name per line")
+  $lines.Add("")
+  foreach ($name in $selected) {
+    $lines.Add($name)
+  }
+  Set-Content -LiteralPath $script:AgentListFile -Value $lines -Encoding ascii
+
+  if ($detected.Count -gt 0) {
+    Write-Host "initialized agent list: $($script:AgentListFile) (detected: $($selected -join ', '))"
+  } else {
+    Write-Host "initialized agent list: $($script:AgentListFile) (no command detected, using sample entries)"
+  }
+}
+
+function Load-ConfiguredAgents {
+  $script:ConfiguredAgents = New-Object System.Collections.Generic.List[string]
+  if (-not (Test-Path -LiteralPath $script:AgentListFile -PathType Leaf)) {
+    throw "missing agent list: $($script:AgentListFile)"
+  }
+
+  foreach ($entry in (Get-AgentEntriesFromFile -PathValue $script:AgentListFile)) {
+    if (-not (Is-ValidAgentName -Value $entry)) {
+      Write-Warning "ignoring invalid agent name in $($script:AgentListFile): $entry"
+      continue
+    }
+    Add-AgentUnique -List $script:ConfiguredAgents -Name $entry
+  }
+
+  if ($script:ConfiguredAgents.Count -eq 0) {
+    throw "no valid agent commands found in $($script:AgentListFile)"
+  }
+}
+
 function Install-Wrappers {
   if (-not (Test-Path -LiteralPath $WrapperSource)) {
     throw "missing wrapper source: $WrapperSource"
@@ -74,7 +251,7 @@ function Install-Wrappers {
 
   New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
 
-  foreach ($cmd in @("claude", "codex", "gemini")) {
+  foreach ($cmd in $script:ConfiguredAgents) {
     $cmdShim = Join-Path $InstallDir "$cmd.cmd"
     $cmdContent = @"
 @echo off
@@ -195,7 +372,11 @@ function Main {
     return 0
   }
 
+  $script:AgentListFile = Resolve-AgentListFilePath
+  Initialize-AgentListFile
+  Load-ConfiguredAgents
   Install-Wrappers
+  Write-Host "agent list: $($script:AgentListFile)"
 
   if ($ActivateProfile) {
     Activate-ProfilePath

@@ -1,0 +1,17 @@
+# agent-kit agent command sample list
+#
+# One command name per line. Empty lines and comments are ignored.
+# On first install, install-auto-bootstrap can initialize a real agents list
+# from this sample and keep only commands currently found on PATH.
+#
+# To enable an optional command permanently, copy this file to your real
+# agents list and uncomment the entry.
+
+codex
+claude
+gemini
+
+# Optional examples:
+# aider
+# cursor-agent
+# opencode

@@ -25,6 +25,8 @@ Versioning.
   (Actions run status) before documenting completion
 - README documentation now explicitly explains how a project folder gets
   connected to `agent-kit` (automatic wrapper path vs manual bootstrap path)
+- Agent wrapper installation now uses a configurable agent command list
+  initialized from `config/agents.list.sample` and detected commands on PATH
 
 ## [0.1.0] - 2026-03-13
 

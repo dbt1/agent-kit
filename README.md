@@ -6,9 +6,9 @@ Generic bootstrap kit for agent-driven repository workflows.
 
 ## What This Is
 
-`agent-kit` installs small wrapper commands (`claude`, `codex`, `gemini`) that
-auto-bootstrap a consistent workflow layout the first time you run an agent
-inside a Git repository.
+`agent-kit` installs wrapper commands for configured agent names (default:
+`codex`, `claude`, `gemini`) that auto-bootstrap a consistent workflow layout
+the first time you run an agent inside a Git repository.
 
 Bootstrap creates:
 
@@ -26,8 +26,7 @@ automatically after `git init` on the next wrapped agent call.
 Before installation, ensure:
 
 1. `git` is installed.
-2. At least one real agent CLI is installed and runnable (`claude`, `codex`,
-   or `gemini`).
+2. At least one real agent CLI is installed and runnable.
 3. You are on either:
    - Linux / WSL with Bash
    - Windows with PowerShell
@@ -77,6 +76,9 @@ Get-Command gemini
 
 You should see command paths from the local wrapper install directory.
 
+By default, verify `codex`, `claude`, and `gemini`. If you use a custom agent
+list, verify those configured command names instead.
+
 ## Install Location Notes
 
 - `agent-kit` itself can be cloned anywhere, for example:
@@ -104,6 +106,17 @@ Then re-run install script:
 
 - `./bootstrap/install-auto-bootstrap.sh` (Linux / WSL)
 - `powershell -NoProfile -File .\bootstrap\install-auto-bootstrap.ps1` (Windows)
+
+## Agent Command List
+
+- Sample list in repo: `config/agents.list.sample`
+- Real list used by installer:
+  - `AGENT_KIT_AGENT_LIST` (if set)
+  - else `config/agents.list` in `AGENT_KIT_HOME` when writable
+  - else fallback `~/.config/agent-kit/agents.list`
+- On first install, the real list is auto-initialized from the sample and
+  filtered to commands currently detected on PATH (fallback: sample defaults).
+- To enable extra commands, add them to the real list and re-run installer.
 
 ## Connect A Project Folder
 
@@ -177,8 +190,8 @@ AGENT_KIT_ALLOW_COPY_FALLBACK=0
   If bootstrap reports unmanaged existing workflow files, read
   [Migration and rollback](docs/migration.md) and use a controlled migration.
 - Wrapper cannot find real command:
-  Set one of `AGENT_KIT_REAL_CLAUDE`, `AGENT_KIT_REAL_CODEX`,
-  `AGENT_KIT_REAL_GEMINI` to the real executable path.
+  Set `AGENT_KIT_REAL_<AGENT_NAME>` (uppercased, non-alnum as `_`) to the real
+  executable path. Example: `AGENT_KIT_REAL_CODEX`.
 - Disable auto-bootstrap once:
   Run command with `AGENT_KIT_AUTOBOOTSTRAP=0`.
 - Windows symlink permission issue:
@@ -188,12 +201,12 @@ AGENT_KIT_ALLOW_COPY_FALLBACK=0
 ## Configuration
 
 - `AGENT_KIT_HOME`: path to this repository
+- `AGENT_KIT_AGENT_LIST`: explicit path to agent command list file
 - `AGENT_KIT_AUTOBOOTSTRAP=0`: disable auto-bootstrap for one command
 - `AGENT_KIT_AUTOBOOTSTRAP_FORCE_ROOTS`: project root list that should auto-refresh with `--force` (Windows `;`, Linux/WSL `:` separated; in practice mainly useful for Windows copy-fallback setups)
 - `AGENT_KIT_STRICT_ISOLATION=1`: block mixed legacy state (default)
 - `AGENT_KIT_ALLOW_COPY_FALLBACK=1`: allow copy fallback if links are not possible
-- `AGENT_KIT_REAL_CLAUDE`, `AGENT_KIT_REAL_CODEX`, `AGENT_KIT_REAL_GEMINI`:
-  explicit real binary paths
+- `AGENT_KIT_REAL_<AGENT_NAME>`: explicit real binary path override per command
 
 Optional path-prefix profile mapping:
 

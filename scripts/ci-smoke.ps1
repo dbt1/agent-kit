@@ -4,6 +4,7 @@ $ErrorActionPreference = "Stop"
 
 $RootDir = [System.IO.Path]::GetFullPath((Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) ".."))
 $BootstrapScript = Join-Path $RootDir "bootstrap/bootstrap.ps1"
+$InstallScript = Join-Path $RootDir "bootstrap/install-auto-bootstrap.ps1"
 
 function Assert-PowerShellSyntax {
   param([string]$PathValue)
@@ -40,10 +41,15 @@ function Restore-Env {
 
 $tmpRepo = New-TempDir
 $tmpBlock = New-TempDir
+$tmpInstall = New-TempDir
+$tmpAgentList = Join-Path ([System.IO.Path]::GetTempPath()) ("agent-kit-agents-" + [System.Guid]::NewGuid().ToString("N") + ".list")
 $logSmoke = Join-Path ([System.IO.Path]::GetTempPath()) ("agent-kit-smoke-" + [System.Guid]::NewGuid().ToString("N") + ".log")
 $logStrict = Join-Path ([System.IO.Path]::GetTempPath()) ("agent-kit-strict-" + [System.Guid]::NewGuid().ToString("N") + ".log")
+$logInstall = Join-Path ([System.IO.Path]::GetTempPath()) ("agent-kit-install-" + [System.Guid]::NewGuid().ToString("N") + ".log")
 $oldAgentKitHome = $env:AGENT_KIT_HOME
 $oldStrict = $env:AGENT_KIT_STRICT_ISOLATION
+$oldInstallDir = $env:AGENT_KIT_INSTALL_DIR
+$oldAgentList = $env:AGENT_KIT_AGENT_LIST
 
 try {
   foreach ($relativeScript in @(
@@ -93,6 +99,58 @@ try {
     }
   }
 
+  $env:AGENT_KIT_INSTALL_DIR = $tmpInstall
+  $env:AGENT_KIT_AGENT_LIST = $tmpAgentList
+  & $shellPath -NoProfile -File $InstallScript *> $logInstall
+  if ($LASTEXITCODE -ne 0) {
+    Write-Error "install-auto-bootstrap smoke failed"
+    Get-Content -LiteralPath $logInstall | Write-Error
+    exit 1
+  }
+
+  if (-not (Test-Path -LiteralPath $tmpAgentList -PathType Leaf)) {
+    Write-Error "expected generated agent list missing: $tmpAgentList"
+    Get-Content -LiteralPath $logInstall | Write-Error
+    exit 1
+  }
+
+  $configuredAgents = New-Object System.Collections.Generic.List[string]
+  foreach ($raw in Get-Content -LiteralPath $tmpAgentList) {
+    $line = [string]$raw
+    $line = [regex]::Replace($line, "\r$", "")
+    $line = [regex]::Replace($line, "\s*#.*$", "")
+    $line = $line.Trim()
+    if (-not [string]::IsNullOrWhiteSpace($line)) {
+      if (-not $configuredAgents.Contains($line)) {
+        $configuredAgents.Add($line)
+      }
+    }
+  }
+
+  if ($configuredAgents.Count -eq 0) {
+    Write-Error "generated agent list does not contain usable entries"
+    Get-Content -LiteralPath $tmpAgentList | Write-Error
+    Get-Content -LiteralPath $logInstall | Write-Error
+    exit 1
+  }
+
+  foreach ($agent in $configuredAgents) {
+    $cmdShim = Join-Path $tmpInstall "$agent.cmd"
+    $psShim = Join-Path $tmpInstall "$agent.ps1"
+    if (-not (Test-Path -LiteralPath $cmdShim -PathType Leaf)) {
+      Write-Error "expected cmd wrapper missing for configured agent '$agent'"
+      Get-Content -LiteralPath $logInstall | Write-Error
+      Get-ChildItem -LiteralPath $tmpInstall -Force | ForEach-Object { $_.FullName } | Write-Error
+      exit 1
+    }
+    if (-not (Test-Path -LiteralPath $psShim -PathType Leaf)) {
+      Write-Error "expected powershell wrapper missing for configured agent '$agent'"
+      Get-Content -LiteralPath $logInstall | Write-Error
+      Get-ChildItem -LiteralPath $tmpInstall -Force | ForEach-Object { $_.FullName } | Write-Error
+      exit 1
+    }
+  }
+
   & git -C $tmpBlock init -q
   if ($LASTEXITCODE -ne 0) {
     throw "git init failed for strict repo: $tmpBlock"
@@ -116,8 +174,13 @@ try {
 } finally {
   Restore-Env -Name "AGENT_KIT_HOME" -PreviousValue $oldAgentKitHome
   Restore-Env -Name "AGENT_KIT_STRICT_ISOLATION" -PreviousValue $oldStrict
+  Restore-Env -Name "AGENT_KIT_INSTALL_DIR" -PreviousValue $oldInstallDir
+  Restore-Env -Name "AGENT_KIT_AGENT_LIST" -PreviousValue $oldAgentList
   Remove-Item -LiteralPath $tmpRepo -Recurse -Force -ErrorAction SilentlyContinue
   Remove-Item -LiteralPath $tmpBlock -Recurse -Force -ErrorAction SilentlyContinue
+  Remove-Item -LiteralPath $tmpInstall -Recurse -Force -ErrorAction SilentlyContinue
+  Remove-Item -LiteralPath $tmpAgentList -Force -ErrorAction SilentlyContinue
   Remove-Item -LiteralPath $logSmoke -Force -ErrorAction SilentlyContinue
   Remove-Item -LiteralPath $logStrict -Force -ErrorAction SilentlyContinue
+  Remove-Item -LiteralPath $logInstall -Force -ErrorAction SilentlyContinue
 }

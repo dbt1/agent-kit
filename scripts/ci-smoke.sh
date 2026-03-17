@@ -15,10 +15,14 @@ bash -n bootstrap/install-auto-bootstrap.sh
 TMP_REPO="$(mktemp -d)"
 TMP_BLOCK="$(mktemp -d)"
 TMP_DEFER="$(mktemp -d)"
+TMP_INSTALL="$(mktemp -d)"
+TMP_AGENT_LIST_DIR="$(mktemp -d)"
+TMP_AGENT_LIST="$TMP_AGENT_LIST_DIR/agents.list"
 LOG_SMOKE="$(mktemp)"
 LOG_STRICT="$(mktemp)"
 LOG_DEFER="$(mktemp)"
-trap 'rm -rf "$TMP_REPO" "$TMP_BLOCK" "$TMP_DEFER" "$LOG_SMOKE" "$LOG_STRICT" "$LOG_DEFER"' EXIT
+LOG_INSTALL="$(mktemp)"
+trap 'rm -rf "$TMP_REPO" "$TMP_BLOCK" "$TMP_DEFER" "$TMP_INSTALL" "$TMP_AGENT_LIST_DIR" "$LOG_SMOKE" "$LOG_STRICT" "$LOG_DEFER" "$LOG_INSTALL"' EXIT
 
 git -C "$TMP_REPO" init -q
 
@@ -53,7 +57,50 @@ for p in \
   check_path "$p"
 done
 
-# 3) Deferred bootstrap if folder is not a git repo yet
+# 3) Installer initializes agent list and installs wrappers from that list
+if ! AGENT_KIT_HOME="$ROOT_DIR" AGENT_KIT_INSTALL_DIR="$TMP_INSTALL" AGENT_KIT_AGENT_LIST="$TMP_AGENT_LIST" \
+  ./bootstrap/install-auto-bootstrap.sh >"$LOG_INSTALL" 2>&1; then
+  echo "install-auto-bootstrap smoke failed" >&2
+  cat "$LOG_INSTALL" >&2
+  exit 1
+fi
+
+if [ ! -s "$TMP_AGENT_LIST" ]; then
+  echo "expected generated agent list missing: $TMP_AGENT_LIST" >&2
+  cat "$LOG_INSTALL" >&2
+  exit 1
+fi
+
+mapfile -t configured_agents < <(awk '
+  {
+    line=$0
+    sub(/\r$/, "", line)
+    sub(/[[:space:]]*#.*/, "", line)
+    gsub(/^[[:space:]]+/, "", line)
+    gsub(/[[:space:]]+$/, "", line)
+    if (line != "") print line
+  }
+' "$TMP_AGENT_LIST")
+
+if [ "${#configured_agents[@]}" -eq 0 ]; then
+  echo "generated agent list does not contain usable entries" >&2
+  cat "$TMP_AGENT_LIST" >&2
+  cat "$LOG_INSTALL" >&2
+  exit 1
+fi
+
+for cmd in "${configured_agents[@]}"; do
+  if [ ! -e "$TMP_INSTALL/$cmd" ]; then
+    echo "expected wrapper missing for configured agent '$cmd'" >&2
+    echo "--- install log ---" >&2
+    cat "$LOG_INSTALL" >&2
+    echo "--- install dir ---" >&2
+    find "$TMP_INSTALL" -maxdepth 2 -print >&2
+    exit 1
+  fi
+done
+
+# 4) Deferred bootstrap if folder is not a git repo yet
 if ! AGENT_KIT_HOME="$ROOT_DIR" AGENT_KIT_STRICT_ISOLATION=1 \
   ./bootstrap/bootstrap.sh --project-root "$TMP_DEFER" >"$LOG_DEFER" 2>&1; then
   echo "deferred bootstrap should not fail in non-git directory" >&2
@@ -88,7 +135,7 @@ if [ ! -e "$TMP_DEFER/.agent-workflow/state.env" ]; then
   exit 1
 fi
 
-# 4) Strict isolation block test
+# 5) Strict isolation block test
 git -C "$TMP_BLOCK" init -q
 echo "legacy" > "$TMP_BLOCK/AGENTS.md"
 

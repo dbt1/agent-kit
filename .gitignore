@@ -1,6 +1,9 @@
 # generated memory files
 memory/*_MEMORY.md
 
+# local agent command list generated from sample
+config/agents.list
+
 # keep docs/config under memory tracked
 !memory/.gitignore
 !memory/README.md

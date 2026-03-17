@@ -27,7 +27,7 @@ Usage: $script:ScriptName [options]
 
 Options:
   --project-root <path>  Bootstrap this repository root directly
-  --agent <name>         Agent command name (claude/codex/gemini)
+  --agent <name>         Agent command name
   --profile <name>       Force profile name
   --dry-run              Show planned changes only
   --force                Override marker and replace existing symlinks
