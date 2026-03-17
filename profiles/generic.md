@@ -10,5 +10,6 @@
 
 1. Define scope as a single workitem.
 2. Execute changes with minimal diff.
-3. Validate via explicit commands.
-4. Document outcomes in workitem files.
+3. Validate via explicit local commands.
+4. Review relevant GitHub checks (Actions run status) for the change.
+5. Document outcomes in workitem files.

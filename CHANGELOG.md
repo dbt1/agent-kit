@@ -21,6 +21,8 @@ Versioning.
   after `git init` on the next wrapped agent call
 - `--project-root` detection now uses `git -C <path> rev-parse --show-toplevel`
   for more robust Git root resolution
+- Generic workflow guidance now includes reviewing relevant GitHub checks
+  (Actions run status) before documenting completion
 
 ## [0.1.0] - 2026-03-13
 

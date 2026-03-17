@@ -20,6 +20,7 @@ Describe what is out of scope.
 
 ## Validation
 - [ ] Command(s) and expected results documented
+- [ ] GitHub checks reviewed (Actions run link + status noted)
 
 ## Risks
 - Risk 1
