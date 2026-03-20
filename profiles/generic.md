@@ -3,8 +3,9 @@
 ## Startup Context
 
 1. Read project-local `MEMORY.md`.
-2. Read project-local `workitems/INDEX.md`.
-3. If present, read project-local docs relevant to the task.
+2. Read project-local `SKILLS.md`.
+3. Read project-local `workitems/INDEX.md`.
+4. If present, read project-local docs relevant to the task.
 
 ## Workflow
 
