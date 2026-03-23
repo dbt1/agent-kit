@@ -3,11 +3,12 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AGENT_KIT_HOME="${AGENT_KIT_HOME:-$(cd "$SCRIPT_DIR/.." && pwd)}"
-BOOTSTRAP_VERSION="2026-03-13-core-v1"
+BOOTSTRAP_VERSION="2026-03-23-core-v2"
 
 DRY_RUN=0
 FORCE=0
 QUIET=0
+NO_MCP=0
 PROJECT_ROOT=""
 AGENT_NAME=""
 STRICT_ISOLATION="${AGENT_KIT_STRICT_ISOLATION:-1}"
@@ -24,6 +25,7 @@ Options:
   --force                Override marker and replace existing symlinks
   --quiet                Minimal output
   --no-strict            Disable strict isolation checks
+  --no-mcp               Skip MCP server propagation via ruler
   -h, --help             Show help
 USAGE
 }
@@ -285,6 +287,10 @@ parse_args() {
         STRICT_ISOLATION=0
         shift
         ;;
+      --no-mcp)
+        NO_MCP=1
+        shift
+        ;;
       -h|--help)
         usage
         exit 0
@@ -359,7 +365,87 @@ main() {
   copy_if_missing "$AGENT_KIT_HOME/templates/workitems/template.md" "$project/workitems/template.md"
 
   write_state_file "$state_file" "$project" "$profile" "$memory_file"
+
+  # --- MCP propagation via ruler ---
+  propagate_mcp "$project"
+
   log "[done] bootstrap complete"
+}
+
+propagate_mcp() {
+  local project="$1"
+  local ruler_source="$AGENT_KIT_HOME/.ruler"
+
+  if [ "$NO_MCP" -eq 1 ]; then
+    log "[skip] MCP propagation disabled (--no-mcp)"
+    return 0
+  fi
+
+  if [ ! -f "$ruler_source/ruler.toml" ]; then
+    log "[skip] no .ruler/ruler.toml found in agent-kit"
+    return 0
+  fi
+
+  local ruler_bin
+  ruler_bin="$(command -v ruler 2>/dev/null || true)"
+  if [ -z "$ruler_bin" ]; then
+    # try common user-local npm path
+    if [ -x "$HOME/.npm-global/bin/ruler" ]; then
+      ruler_bin="$HOME/.npm-global/bin/ruler"
+    else
+      log "[skip] ruler not found in PATH — install with: npm install -g @intellectronica/ruler"
+      return 0
+    fi
+  fi
+
+  # symlink .ruler/ into project
+  safe_symlink "$ruler_source" "$project/.ruler"
+
+  # interactive mode: show servers and ask for confirmation
+  # quiet/force mode (e.g. via wrapper): apply automatically with info line
+  local server_names
+  server_names="$(grep -oP '^\[mcp_servers\.\K[^]]+' "$ruler_source/ruler.toml" | paste -sd',' | sed 's/,/, /g')"
+
+  if [ "$QUIET" -eq 0 ] && [ "$FORCE" -eq 0 ] && [ -t 0 ]; then
+    log ""
+    log "[mcp] The following MCP servers will be configured:"
+    grep -E '^\[mcp_servers\.' "$ruler_source/ruler.toml" | sed 's/\[mcp_servers\.\(.*\)\]/  - \1/' || true
+    log ""
+    printf "Apply MCP server configs to this project? [y/N] "
+    read -r answer
+    case "$answer" in
+      [yYjJ]*)
+        ;;
+      *)
+        log "[skip] MCP propagation declined by user"
+        return 0
+        ;;
+    esac
+  else
+    # always show a brief info, even in quiet mode
+    printf '%s\n' "[mcp] configuring servers: $server_names"
+  fi
+
+  if [ "$DRY_RUN" -eq 1 ]; then
+    log "[dry-run] ruler apply --mcp --no-skills --project-root \"$project\""
+    return 0
+  fi
+
+  # determine which agents to configure from agents.list
+  local agents_list_file="$AGENT_KIT_HOME/config/agents.list"
+  local ruler_agents="claude,codex,gemini-cli,copilot"
+  if [ -f "$agents_list_file" ]; then
+    local parsed
+    parsed="$(grep -v '^\s*#' "$agents_list_file" | grep -v '^\s*$' | tr '\n' ',' | sed 's/,$//')"
+    if [ -n "$parsed" ]; then
+      ruler_agents="$parsed"
+    fi
+  fi
+
+  log "[mcp] running ruler apply ..."
+  (cd "$project" && "$ruler_bin" apply --mcp --no-skills --no-gitignore --no-backup --agents "$ruler_agents" 2>&1) | while IFS= read -r line; do
+    log "[ruler] $line"
+  done
 }
 
 main "$@"

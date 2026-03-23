@@ -10,11 +10,12 @@ if ([string]::IsNullOrWhiteSpace($env:AGENT_KIT_HOME)) {
   $env:AGENT_KIT_HOME = (Resolve-Path (Join-Path $script:ScriptDir "..")).Path
 }
 $script:AgentKitHome = [System.IO.Path]::GetFullPath($env:AGENT_KIT_HOME)
-$script:BootstrapVersion = "2026-03-13-core-v1"
+$script:BootstrapVersion = "2026-03-23-core-v2"
 
 $script:DryRun = $false
 $script:Force = $false
 $script:Quiet = $false
+$script:NoMcp = $false
 $script:ProjectRoot = ""
 $script:AgentName = ""
 $script:ForcedProfile = ""
@@ -33,6 +34,7 @@ Options:
   --force                Override marker and replace existing symlinks
   --quiet                Minimal output
   --no-strict            Disable strict isolation checks
+  --no-mcp               Skip MCP server propagation via ruler
   -h, --help             Show help
 "@
 }
@@ -506,6 +508,10 @@ function Parse-Args {
         $script:StrictIsolation = "0"
         $i += 1
       }
+      "--no-mcp" {
+        $script:NoMcp = $true
+        $i += 1
+      }
       "--help" {
         Show-Usage
         return $false
@@ -578,8 +584,100 @@ function Main {
   Copy-IfMissing -Source (Join-Path $script:AgentKitHome "templates/workitems/template.md") -Destination (Join-Path $project "workitems/template.md")
 
   Write-StateFile -StateFile $stateFile -ProjectPath $project -Profile $profile -MemoryFile $memoryFile
+
+  # --- MCP propagation via ruler ---
+  Propagate-Mcp -ProjectPath $project
+
   Log "[done] bootstrap complete"
   return 0
+}
+
+function Propagate-Mcp {
+  param([string]$ProjectPath)
+
+  if ($script:NoMcp) {
+    Log "[skip] MCP propagation disabled (--no-mcp)"
+    return
+  }
+
+  $rulerSource = Join-Path $script:AgentKitHome ".ruler"
+  $rulerToml = Join-Path $rulerSource "ruler.toml"
+  if (-not (Test-Path -LiteralPath $rulerToml)) {
+    Log "[skip] no .ruler/ruler.toml found in agent-kit"
+    return
+  }
+
+  # find ruler binary
+  $rulerBin = $null
+  try {
+    $rulerBin = (Get-Command ruler -ErrorAction SilentlyContinue).Source
+  } catch {}
+  if ([string]::IsNullOrWhiteSpace($rulerBin)) {
+    $npmGlobalRuler = Join-Path $env:APPDATA "npm/ruler.cmd"
+    if (Test-Path -LiteralPath $npmGlobalRuler) {
+      $rulerBin = $npmGlobalRuler
+    } else {
+      Log "[skip] ruler not found in PATH - install with: npm install -g @intellectronica/ruler"
+      return
+    }
+  }
+
+  # symlink .ruler/ into project
+  Safe-Symlink -Target $rulerSource -LinkPath (Join-Path $ProjectPath ".ruler")
+
+  # collect server names for display
+  $tomlContent = Get-Content -LiteralPath $rulerToml
+  $serverNames = @()
+  foreach ($line in $tomlContent) {
+    if ($line -match '^\[mcp_servers\.(.+)\]') {
+      $serverNames += $Matches[1]
+    }
+  }
+  $serverList = $serverNames -join ", "
+
+  # interactive mode: show servers and ask for confirmation
+  # quiet/force mode (e.g. via wrapper): apply automatically with info line
+  if (-not $script:Quiet -and -not $script:Force -and [Environment]::UserInteractive) {
+    Log ""
+    Log "[mcp] The following MCP servers will be configured:"
+    foreach ($name in $serverNames) {
+      Log "  - $name"
+    }
+    Log ""
+    $answer = Read-Host "Apply MCP server configs to this project? [y/N]"
+    if ($answer -notmatch '^[yYjJ]') {
+      Log "[skip] MCP propagation declined by user"
+      return
+    }
+  } else {
+    # always show a brief info, even in quiet mode
+    Write-Host "[mcp] configuring servers: $serverList"
+  }
+
+  # determine which agents to configure from agents.list
+  $agentsListFile = Join-Path $script:AgentKitHome "config/agents.list"
+  $rulerAgents = "claude,codex,gemini-cli,copilot"
+  if (Test-Path -LiteralPath $agentsListFile) {
+    $parsed = (Get-Content -LiteralPath $agentsListFile | Where-Object { $_ -notmatch '^\s*#' -and $_ -notmatch '^\s*$' }) -join ","
+    if (-not [string]::IsNullOrWhiteSpace($parsed)) {
+      $rulerAgents = $parsed
+    }
+  }
+
+  if ($script:DryRun) {
+    Log "[dry-run] ruler apply --mcp --no-skills --no-backup --agents $rulerAgents --project-root `"$ProjectPath`""
+    return
+  }
+
+  Log "[mcp] running ruler apply ..."
+  try {
+    $output = & $rulerBin apply --mcp --no-skills --no-gitignore --no-backup --agents $rulerAgents 2>&1
+    foreach ($line in $output) {
+      Log "[ruler] $line"
+    }
+  } catch {
+    Log "[warn] ruler apply failed: $($_.Exception.Message)"
+  }
 }
 
 try {

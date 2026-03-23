@@ -1,0 +1,19 @@
+# ruler.toml — Central MCP server definitions for agent-kit
+# These servers are propagated to all supported agents via `ruler apply --mcp`
+# Docs: https://github.com/intellectronica/ruler
+
+[main]
+# Only propagate MCP configs, not rules (agent-kit handles rules via profiles)
+default_agents = ["claude", "codex", "gemini-cli", "copilot", "cursor", "aider", "opencode"]
+
+[mcp]
+enabled = true
+merge_strategy = "merge"
+
+# --- MCP Servers ---
+
+[mcp_servers.deepwiki]
+url = "https://mcp.deepwiki.com/sse"
+
+[mcp_servers.agent-coordinator]
+url = "http://localhost:8765/mcp/sse"
