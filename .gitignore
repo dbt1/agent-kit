@@ -1,9 +1,28 @@
-# generated memory files
+# generated memory files (project-specific, private)
 memory/*_MEMORY.md
 
 # local agent command list generated from sample
 config/agents.list
 
-# keep docs/config under memory tracked
+# project-specific local config (not in public repo)
+config/project-map.tsv
+
+# private project context (synced via Nextcloud, not via git)
+docs/*.md
+!docs/migration.md
+!docs/migration.de.md
+!docs/release.md
+!docs/release.de.md
+todos/
+workitems/
+logs/
+archive/
+
+# project-specific profiles (synced via Nextcloud, not via git)
+profiles/*.md
+!profiles/generic.md
+
+# keep tracked scaffolding files
 !memory/.gitignore
 !memory/README.md
+!docs/README.md
