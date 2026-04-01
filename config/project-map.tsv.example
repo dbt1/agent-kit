@@ -1,2 +1,5 @@
-# <absolute-path-prefix> <TAB> <profile-name>
+# Host-specific maps: config/project-map/<host-id>.tsv
+# Fallback: config/project-map.tsv
+# <absolute-path-prefix> <TAB> <profile-name> [<TAB> <project-id>]
 /home/user/sources	generic
+/home/user/sources/neutrino	neutrino-app	neutrino

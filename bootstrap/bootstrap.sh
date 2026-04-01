@@ -3,7 +3,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AGENT_KIT_HOME="${AGENT_KIT_HOME:-$(cd "$SCRIPT_DIR/.." && pwd)}"
-BOOTSTRAP_VERSION="2026-03-23-core-v2"
+BOOTSTRAP_VERSION="2026-04-01-host-aware-v1"
+HOST_ID="${AGENT_KIT_HOST_ID:-$(hostname -s 2>/dev/null || hostname 2>/dev/null || printf 'unknown-host')}"
 
 DRY_RUN=0
 FORCE=0
@@ -98,6 +99,8 @@ sanitize_name() {
   printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9._-' '_'
 }
 
+HOST_ID="$(sanitize_name "$HOST_ID")"
+
 detect_project_root() {
   local probe
   if [ -n "$PROJECT_ROOT" ]; then
@@ -115,30 +118,56 @@ detect_project_root() {
 
 FORCED_PROFILE=""
 
-read_map_profile() {
-  local project="$1"
-  local map_file="$AGENT_KIT_HOME/config/project-map.tsv"
+find_project_map_file() {
+  local host_map="$AGENT_KIT_HOME/config/project-map/$HOST_ID.tsv"
+  local fallback_map="$AGENT_KIT_HOME/config/project-map.tsv"
 
-  if [ ! -f "$map_file" ]; then
+  if [ -f "$host_map" ]; then
+    printf '%s\n' "$host_map"
+    return 0
+  fi
+
+  if [ -f "$fallback_map" ]; then
+    printf '%s\n' "$fallback_map"
+    return 0
+  fi
+
+  return 1
+}
+
+read_project_binding() {
+  local project="$1"
+  local map_file
+
+  if ! map_file="$(find_project_map_file)"; then
     return 1
   fi
 
-  awk -v project="$project" '
-    BEGIN { best=""; bestlen=-1 }
-    $0 ~ /^#/ || NF < 2 { next }
+  awk -F '\t' -v project="$project" '
+    function trim(value) {
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+      return value
+    }
+    BEGIN { best_profile=""; best_project_id=""; bestlen=-1 }
+    $0 ~ /^[[:space:]]*#/ || $0 ~ /^[[:space:]]*$/ { next }
     {
-      prefix=$1
-      profile=$2
+      prefix=trim($1)
+      profile=trim($2)
+      project_id=trim($3)
+      if (prefix == "" || profile == "") {
+        next
+      }
       if (index(project, prefix) == 1) {
         if (length(prefix) > bestlen) {
-          best=profile
+          best_profile=profile
+          best_project_id=project_id
           bestlen=length(prefix)
         }
       }
     }
     END {
       if (bestlen >= 0) {
-        print best
+        print best_profile "\t" best_project_id
         exit 0
       }
       exit 1
@@ -148,6 +177,7 @@ read_map_profile() {
 
 detect_profile() {
   local project="$1"
+  local binding mapped_profile
 
   if [ -n "$FORCED_PROFILE" ]; then
     printf '%s\n' "$FORCED_PROFILE"
@@ -163,14 +193,30 @@ detect_profile() {
     fi
   fi
 
-  if p_map="$(read_map_profile "$project" 2>/dev/null)"; then
-    if [ -n "$p_map" ]; then
-      printf '%s\n' "$p_map"
+  if binding="$(read_project_binding "$project" 2>/dev/null)"; then
+    mapped_profile="${binding%%$'\t'*}"
+    if [ -n "$mapped_profile" ]; then
+      printf '%s\n' "$mapped_profile"
       return 0
     fi
   fi
 
   printf '%s\n' "generic"
+}
+
+detect_project_id() {
+  local project="$1"
+  local binding mapped_project_id
+
+  if binding="$(read_project_binding "$project" 2>/dev/null)"; then
+    mapped_project_id="${binding#*$'\t'}"
+    if [ "$mapped_project_id" != "$binding" ] && [ -n "$mapped_project_id" ]; then
+      sanitize_name "$mapped_project_id"
+      return 0
+    fi
+  fi
+
+  sanitize_name "$(basename "$project")"
 }
 
 is_managed_symlink() {
@@ -207,27 +253,88 @@ strict_isolation_check() {
   return 0
 }
 
-write_memory_file() {
-  local memory_file="$1"
+write_host_aware_memory() {
+  local project_id="$1"
   local project="$2"
   local profile="$3"
-  if [ -e "$memory_file" ]; then
-    return 0
-  fi
-  if [ "$DRY_RUN" -eq 1 ]; then
-    log "[dry-run] create memory file $memory_file"
-    return 0
-  fi
-  cat > "$memory_file" <<MEM
-# $(basename "$project")_MEMORY
+  local shared_dir="$AGENT_KIT_HOME/memory/projects/$project_id"
+  local hosts_dir="$shared_dir/hosts"
+  local index_dir="$shared_dir/index"
+  local shared_file="$shared_dir/shared.md"
+  local host_file="$hosts_dir/$HOST_ID.md"
+  local index_file="$index_dir/$HOST_ID.md"
+  local other_hosts_text=""
 
-## Project
-- Root: $project
+  ensure_dir "$hosts_dir"
+  ensure_dir "$index_dir"
+
+  if [ ! -e "$shared_file" ]; then
+    if [ "$DRY_RUN" -eq 1 ]; then
+      log "[dry-run] create shared memory $shared_file"
+    else
+      cat > "$shared_file" <<MEM
+# $project_id - Shared Knowledge
+
+## Scope
+Host-independent learnings, architecture notes, general rules, and validated fixes.
+
+## Notes
+MEM
+    fi
+  fi
+
+  if [ ! -e "$host_file" ]; then
+    if [ "$DRY_RUN" -eq 1 ]; then
+      log "[dry-run] create host memory $host_file"
+    else
+      cat > "$host_file" <<MEM
+# $project_id - Host: $HOST_ID
+
+## Scope
+Host-specific paths, tools, build quirks, device notes, and validation results for this host.
+
+## Environment
+- Host: $HOST_ID
+- Project Root: $project
 - Profile: $profile
 
 ## Notes
-- Add persistent project-specific learnings here.
-- Keep gotchas and validated command snippets concise.
+MEM
+    fi
+  fi
+
+  while IFS= read -r other_host; do
+    [ -n "$other_host" ] || continue
+    [ "$other_host" = "$HOST_ID" ] && continue
+    other_hosts_text="${other_hosts_text}- $other_host: $hosts_dir/$other_host.md"$'\n'
+  done < <(find "$hosts_dir" -maxdepth 1 -type f -name '*.md' -printf '%f\n' 2>/dev/null | sed 's/\.md$//' | sort)
+
+  if [ -z "$other_hosts_text" ]; then
+    other_hosts_text="- none yet"$'\n'
+  fi
+
+  if [ "$DRY_RUN" -eq 1 ]; then
+    log "[dry-run] write memory index $index_file"
+    return 0
+  fi
+
+  cat > "$index_file" <<MEM
+# $project_id - Memory Index (Host: $HOST_ID)
+
+Generated by bootstrap. Edit $shared_file or $host_file, not this file.
+
+## Read Order
+1. Shared Knowledge: $shared_file
+2. This Host: $host_file
+
+## Other Hosts
+$other_hosts_text
+## Rules
+- Read shared knowledge first, then this host file.
+- Treat other host files as reference only until you validate locally.
+- Write host-specific findings only to $host_file.
+- Write host-independent findings only to $shared_file.
+- Do not store secrets, tokens, or local credentials in shared files.
 MEM
 }
 
@@ -236,6 +343,7 @@ write_state_file() {
   local project="$2"
   local profile="$3"
   local memory_file="$4"
+  local project_id="$5"
   local now
   now="$(date -Iseconds)"
 
@@ -251,6 +359,8 @@ BOOTSTRAPPED_AT=$now
 AGENT_NAME=${AGENT_NAME:-unknown}
 PROJECT_ROOT=$project
 PROFILE=$profile
+HOST_ID=$HOST_ID
+PROJECT_ID=$project_id
 AGENT_KIT_HOME=$AGENT_KIT_HOME
 MEMORY_FILE=$memory_file
 STATE
@@ -343,17 +453,19 @@ main() {
     profile_file="$AGENT_KIT_HOME/profiles/generic.md"
   fi
 
-  local project_name memory_file
-  project_name="$(sanitize_name "$(basename "$project")")"
-  memory_file="$AGENT_KIT_HOME/memory/${project_name}_MEMORY.md"
+  local project_id memory_file
+  project_id="$(detect_project_id "$project")"
+  memory_file="$AGENT_KIT_HOME/memory/projects/$project_id/index/$HOST_ID.md"
 
   log "[info] project: $project"
   log "[info] profile: $profile"
+  log "[info] host: $HOST_ID"
+  log "[info] project-id: $project_id"
 
   ensure_dir "$marker_dir"
-  ensure_dir "$AGENT_KIT_HOME/memory"
+  ensure_dir "$AGENT_KIT_HOME/memory/projects"
 
-  write_memory_file "$memory_file" "$project" "$profile"
+  write_host_aware_memory "$project_id" "$project" "$profile"
 
   safe_symlink "$profile_file" "$project/AGENTS.md"
   safe_symlink "$profile_file" "$project/CLAUDE.md"
@@ -364,7 +476,7 @@ main() {
   copy_if_missing "$AGENT_KIT_HOME/templates/workitems/INDEX.md" "$project/workitems/INDEX.md"
   copy_if_missing "$AGENT_KIT_HOME/templates/workitems/template.md" "$project/workitems/template.md"
 
-  write_state_file "$state_file" "$project" "$profile" "$memory_file"
+  write_state_file "$state_file" "$project" "$profile" "$memory_file" "$project_id"
 
   # --- MCP propagation via ruler ---
   propagate_mcp "$project"

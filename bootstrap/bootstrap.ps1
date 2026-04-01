@@ -10,7 +10,7 @@ if ([string]::IsNullOrWhiteSpace($env:AGENT_KIT_HOME)) {
   $env:AGENT_KIT_HOME = (Resolve-Path (Join-Path $script:ScriptDir "..")).Path
 }
 $script:AgentKitHome = [System.IO.Path]::GetFullPath($env:AGENT_KIT_HOME)
-$script:BootstrapVersion = "2026-03-23-core-v2"
+$script:BootstrapVersion = "2026-04-01-host-aware-v1"
 
 $script:DryRun = $false
 $script:Force = $false
@@ -261,6 +261,16 @@ function Sanitize-Name {
   return [regex]::Replace($lower, "[^a-z0-9._-]+", "_")
 }
 
+$rawHostId = if ([string]::IsNullOrWhiteSpace($env:AGENT_KIT_HOST_ID)) {
+  [System.Environment]::MachineName
+} else {
+  $env:AGENT_KIT_HOST_ID
+}
+if ([string]::IsNullOrWhiteSpace($rawHostId)) {
+  $rawHostId = "unknown-host"
+}
+$script:HostId = Sanitize-Name -Value $rawHostId
+
 function Detect-ProjectRoot {
   if (-not [string]::IsNullOrWhiteSpace($script:ProjectRoot)) {
     $gitDir = Join-Path $script:ProjectRoot ".git"
@@ -279,42 +289,69 @@ function Detect-ProjectRoot {
   return [System.IO.Path]::GetFullPath($root.Trim())
 }
 
-function Read-Map-Profile {
+function Get-ProjectMapFile {
+  $hostMap = Join-Path $script:AgentKitHome "config/project-map/$($script:HostId).tsv"
+  if (Test-Path -LiteralPath $hostMap) {
+    return $hostMap
+  }
+
+  $fallbackMap = Join-Path $script:AgentKitHome "config/project-map.tsv"
+  if (Test-Path -LiteralPath $fallbackMap) {
+    return $fallbackMap
+  }
+
+  return $null
+}
+
+function Read-ProjectBinding {
   param([string]$ProjectPath)
 
-  $mapFile = Join-Path $script:AgentKitHome "config/project-map.tsv"
-  if (-not (Test-Path -LiteralPath $mapFile)) {
+  $mapFile = Get-ProjectMapFile
+  if ([string]::IsNullOrWhiteSpace($mapFile)) {
     return $null
   }
 
   $bestProfile = $null
+  $bestProjectId = $null
   $bestLength = -1
   foreach ($line in Get-Content -LiteralPath $mapFile) {
     if ($line -match "^\s*$" -or $line -match "^\s*#") {
       continue
     }
-    $parts = $line -split "`t", 2
+    $parts = $line -split "`t", 3
     if ($parts.Count -lt 2) {
       continue
     }
     $prefix = $parts[0].Trim()
     $profile = $parts[1].Trim()
+    $projectId = if ($parts.Count -ge 3) { $parts[2].Trim() } else { "" }
     if ([string]::IsNullOrWhiteSpace($prefix) -or [string]::IsNullOrWhiteSpace($profile)) {
       continue
     }
     if ($ProjectPath.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) {
       if ($prefix.Length -gt $bestLength) {
         $bestProfile = $profile
+        $bestProjectId = $projectId
         $bestLength = $prefix.Length
       }
     }
   }
 
-  return $bestProfile
+  if ([string]::IsNullOrWhiteSpace($bestProfile)) {
+    return $null
+  }
+
+  return [pscustomobject]@{
+    Profile = $bestProfile
+    ProjectId = $bestProjectId
+  }
 }
 
 function Detect-Profile {
-  param([string]$ProjectPath)
+  param(
+    [string]$ProjectPath,
+    [object]$Binding = $null
+  )
 
   if (-not [string]::IsNullOrWhiteSpace($script:ForcedProfile)) {
     return $script:ForcedProfile
@@ -328,12 +365,32 @@ function Detect-Profile {
     }
   }
 
-  $mappedProfile = Read-Map-Profile -ProjectPath $ProjectPath
-  if (-not [string]::IsNullOrWhiteSpace($mappedProfile)) {
-    return $mappedProfile
+  if ($null -eq $Binding) {
+    $Binding = Read-ProjectBinding -ProjectPath $ProjectPath
+  }
+
+  if ($null -ne $Binding -and -not [string]::IsNullOrWhiteSpace($Binding.Profile)) {
+    return $Binding.Profile
   }
 
   return "generic"
+}
+
+function Detect-ProjectId {
+  param(
+    [string]$ProjectPath,
+    [object]$Binding = $null
+  )
+
+  if ($null -eq $Binding) {
+    $Binding = Read-ProjectBinding -ProjectPath $ProjectPath
+  }
+
+  if ($null -ne $Binding -and -not [string]::IsNullOrWhiteSpace($Binding.ProjectId)) {
+    return (Sanitize-Name -Value $Binding.ProjectId)
+  }
+
+  return (Sanitize-Name -Value (Split-Path -Leaf $ProjectPath))
 }
 
 function Is-ManagedSymlink {
@@ -407,33 +464,95 @@ function Strict-IsolationCheck {
   return $true
 }
 
-function Write-MemoryFile {
+function Write-HostAwareMemory {
   param(
-    [string]$MemoryFile,
+    [string]$ProjectId,
     [string]$ProjectPath,
     [string]$Profile
   )
 
-  if (Test-Path -LiteralPath $MemoryFile) {
-    return
+  $projectMemoryRoot = Join-Path $script:AgentKitHome "memory/projects/$ProjectId"
+  $sharedFile = Join-Path $projectMemoryRoot "shared.md"
+  $hostsDir = Join-Path $projectMemoryRoot "hosts"
+  $indexDir = Join-Path $projectMemoryRoot "index"
+  $hostFile = Join-Path $hostsDir "$($script:HostId).md"
+  $indexFile = Join-Path $indexDir "$($script:HostId).md"
+
+  Ensure-Dir $hostsDir
+  Ensure-Dir $indexDir
+
+  if (-not (Test-Path -LiteralPath $sharedFile)) {
+    if ($script:DryRun) {
+      Log "[dry-run] create shared memory $sharedFile"
+    } else {
+@"
+# $ProjectId - Shared Knowledge
+
+## Scope
+Host-independent learnings, architecture notes, general rules, and validated fixes.
+
+## Notes
+"@ | Set-Content -LiteralPath $sharedFile
+    }
+  }
+
+  if (-not (Test-Path -LiteralPath $hostFile)) {
+    if ($script:DryRun) {
+      Log "[dry-run] create host memory $hostFile"
+    } else {
+@"
+# $ProjectId - Host: $($script:HostId)
+
+## Scope
+Host-specific paths, tools, build quirks, device notes, and validation results for this host.
+
+## Environment
+- Host: $($script:HostId)
+- Project Root: $ProjectPath
+- Profile: $Profile
+
+## Notes
+"@ | Set-Content -LiteralPath $hostFile
+    }
+  }
+
+  $otherHostLines = New-Object System.Collections.Generic.List[string]
+  if (Test-Path -LiteralPath $hostsDir) {
+    foreach ($item in Get-ChildItem -LiteralPath $hostsDir -Filter "*.md" | Sort-Object Name) {
+      if ($item.BaseName -eq $script:HostId) {
+        continue
+      }
+      $otherHostLines.Add("- $($item.BaseName): $($item.FullName)")
+    }
+  }
+  if ($otherHostLines.Count -eq 0) {
+    $otherHostLines.Add("- none yet")
   }
 
   if ($script:DryRun) {
-    Log "[dry-run] create memory file $MemoryFile"
+    Log "[dry-run] write memory index $indexFile"
     return
   }
 
   @"
-# $(Split-Path -Leaf $ProjectPath)_MEMORY
+# $ProjectId - Memory Index (Host: $($script:HostId))
 
-## Project
-- Root: $ProjectPath
-- Profile: $Profile
+Generated by bootstrap. Edit $sharedFile or $hostFile, not this file.
 
-## Notes
-- Add persistent project-specific learnings here.
-- Keep gotchas and validated command snippets concise.
-"@ | Set-Content -LiteralPath $MemoryFile
+## Read Order
+1. Shared Knowledge: $sharedFile
+2. This Host: $hostFile
+
+## Other Hosts
+$($otherHostLines -join [Environment]::NewLine)
+
+## Rules
+- Read shared knowledge first, then this host file.
+- Treat other host files as reference only until you validate locally.
+- Write host-specific findings only to $hostFile.
+- Write host-independent findings only to $sharedFile.
+- Do not store secrets, tokens, or local credentials in shared files.
+"@ | Set-Content -LiteralPath $indexFile
 }
 
 function Write-StateFile {
@@ -441,7 +560,8 @@ function Write-StateFile {
     [string]$StateFile,
     [string]$ProjectPath,
     [string]$Profile,
-    [string]$MemoryFile
+    [string]$MemoryFile,
+    [string]$ProjectId
   )
 
   if ($script:DryRun) {
@@ -459,6 +579,8 @@ BOOTSTRAPPED_AT=$now
 AGENT_NAME=$agentValue
 PROJECT_ROOT=$ProjectPath
 PROFILE=$Profile
+HOST_ID=$($script:HostId)
+PROJECT_ID=$ProjectId
 AGENT_KIT_HOME=$script:AgentKitHome
 MEMORY_FILE=$MemoryFile
 "@ | Set-Content -LiteralPath $StateFile
@@ -556,23 +678,26 @@ function Main {
     return 2
   }
 
-  $profile = Detect-Profile -ProjectPath $project
+  $binding = Read-ProjectBinding -ProjectPath $project
+  $profile = Detect-Profile -ProjectPath $project -Binding $binding
   $profileFile = Join-Path $script:AgentKitHome "profiles/$profile.md"
   if (-not (Test-Path -LiteralPath $profileFile)) {
     $profile = "generic"
     $profileFile = Join-Path $script:AgentKitHome "profiles/generic.md"
   }
 
-  $projectName = Sanitize-Name -Value (Split-Path -Leaf $project)
-  $memoryFile = Join-Path $script:AgentKitHome "memory/${projectName}_MEMORY.md"
+  $projectId = Detect-ProjectId -ProjectPath $project -Binding $binding
+  $memoryFile = Join-Path $script:AgentKitHome "memory/projects/$projectId/index/$($script:HostId).md"
 
   Log "[info] project: $project"
   Log "[info] profile: $profile"
+  Log "[info] host: $($script:HostId)"
+  Log "[info] project-id: $projectId"
 
   Ensure-Dir $markerDir
-  Ensure-Dir (Join-Path $script:AgentKitHome "memory")
+  Ensure-Dir (Join-Path $script:AgentKitHome "memory/projects")
 
-  Write-MemoryFile -MemoryFile $memoryFile -ProjectPath $project -Profile $profile
+  Write-HostAwareMemory -ProjectId $projectId -ProjectPath $project -Profile $profile
 
   Safe-Symlink -Target $profileFile -LinkPath (Join-Path $project "AGENTS.md")
   Safe-Symlink -Target $profileFile -LinkPath (Join-Path $project "CLAUDE.md")
@@ -583,7 +708,7 @@ function Main {
   Copy-IfMissing -Source (Join-Path $script:AgentKitHome "templates/workitems/INDEX.md") -Destination (Join-Path $project "workitems/INDEX.md")
   Copy-IfMissing -Source (Join-Path $script:AgentKitHome "templates/workitems/template.md") -Destination (Join-Path $project "workitems/template.md")
 
-  Write-StateFile -StateFile $stateFile -ProjectPath $project -Profile $profile -MemoryFile $memoryFile
+  Write-StateFile -StateFile $stateFile -ProjectPath $project -Profile $profile -MemoryFile $memoryFile -ProjectId $projectId
 
   # --- MCP propagation via ruler ---
   Propagate-Mcp -ProjectPath $project

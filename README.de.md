@@ -13,7 +13,7 @@ Git-Repository automatisch eine konsistente Workflow-Struktur anlegen.
 Bootstrap erzeugt:
 
 - `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` (Profil-Links)
-- `MEMORY.md` (Projekt-Memory-Link)
+- `MEMORY.md` (Link auf den host-spezifischen Memory-Index)
 - `SKILLS.md` (Skills-Link)
 - `workitems/INDEX.md` und `workitems/template.md`
 - `.agent-workflow/state.env` Marker
@@ -205,6 +205,7 @@ AGENT_KIT_ALLOW_COPY_FALLBACK=0
 
 - `AGENT_KIT_HOME`: Pfad zu diesem Repository
 - `AGENT_KIT_AGENT_LIST`: expliziter Pfad zur Agent-Command-Liste
+- `AGENT_KIT_HOST_ID`: explizite Host-ID fuer host-aware Memory und host-spezifische Project-Maps
 - `AGENT_KIT_AUTOBOOTSTRAP=0`: Auto-Bootstrap fuer einen Aufruf aus
 - `AGENT_KIT_AUTOBOOTSTRAP_FORCE_ROOTS`: Liste von Projekt-Roots mit Auto-Refresh via `--force` (Windows `;`, Linux/WSL `:` getrennt; in der Praxis vor allem fuer Windows-Copy-Fallback sinnvoll)
 - `AGENT_KIT_STRICT_ISOLATION=1`: gemischte Legacy-Zustaende blockieren (Default)
@@ -219,7 +220,36 @@ Optionales Profil-Mapping per Pfad-Praefix:
 ```
 
 Datei: `config/project-map.tsv`  
-Format: `<absolutes-praefix><TAB><profilname>`
+Format: `<absolutes-praefix><TAB><profilname>[<TAB><project-id>]`
+
+Host-spezifische Overrides sind moeglich ueber:
+
+```text
+config/project-map/<host-id>.tsv
+```
+
+Bootstrap nutzt diese Reihenfolge:
+
+1. `config/project-map/<host-id>.tsv`
+2. `config/project-map.tsv`
+
+`project-id` ist optional. Wenn die Spalte fehlt, faellt Bootstrap auf den
+sanitizten Projektordnernamen zurueck.
+
+## Host-Aware Memory
+
+Bootstrap schreibt Projekt-Memory in:
+
+```text
+memory/projects/<project-id>/
+  shared.md
+  hosts/<host-id>.md
+  index/<host-id>.md
+```
+
+`MEMORY.md` im Projekt zeigt auf `index/<host-id>.md`.
+Der Index legt fest: zuerst Shared Knowledge lesen, dann den lokalen Host-
+Kontext, andere Hosts nur als Nachschlagewerk.
 
 ## Befehlsreferenz
 

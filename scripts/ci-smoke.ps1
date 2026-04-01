@@ -43,11 +43,16 @@ $tmpRepo = New-TempDir
 $tmpBlock = New-TempDir
 $tmpInstall = New-TempDir
 $tmpAgentList = Join-Path ([System.IO.Path]::GetTempPath()) ("agent-kit-agents-" + [System.Guid]::NewGuid().ToString("N") + ".list")
+$tmpHostMapDir = Join-Path $RootDir "config/project-map"
+$tmpHostMap = Join-Path $tmpHostMapDir "smoke-host.tsv"
+$tmpHostMapOther = Join-Path $tmpHostMapDir "other-host.tsv"
+$tmpMemoryRoot = Join-Path $RootDir "memory/projects/smoke-project"
 $logSmoke = Join-Path ([System.IO.Path]::GetTempPath()) ("agent-kit-smoke-" + [System.Guid]::NewGuid().ToString("N") + ".log")
 $logStrict = Join-Path ([System.IO.Path]::GetTempPath()) ("agent-kit-strict-" + [System.Guid]::NewGuid().ToString("N") + ".log")
 $logInstall = Join-Path ([System.IO.Path]::GetTempPath()) ("agent-kit-install-" + [System.Guid]::NewGuid().ToString("N") + ".log")
 $oldAgentKitHome = $env:AGENT_KIT_HOME
 $oldStrict = $env:AGENT_KIT_STRICT_ISOLATION
+$oldHostId = $env:AGENT_KIT_HOST_ID
 $oldInstallDir = $env:AGENT_KIT_INSTALL_DIR
 $oldAgentList = $env:AGENT_KIT_AGENT_LIST
 
@@ -70,6 +75,10 @@ try {
   $shellPath = (Get-Process -Id $PID).Path
   $env:AGENT_KIT_HOME = $RootDir
   $env:AGENT_KIT_STRICT_ISOLATION = "1"
+  $env:AGENT_KIT_HOST_ID = "smoke-host"
+  New-Item -ItemType Directory -Path $tmpHostMapDir -Force | Out-Null
+  Set-Content -LiteralPath $tmpHostMap -Value "$tmpRepo`tgeneric`tsmoke-project"
+  Set-Content -LiteralPath $tmpHostMapOther -Value "$tmpRepo`tgeneric`tsmoke-project"
 
   & $shellPath -NoProfile -File $BootstrapScript --project-root $tmpRepo *> $logSmoke
   if ($LASTEXITCODE -ne 0) {
@@ -79,6 +88,9 @@ try {
   }
 
   foreach ($path in @(
+      (Join-Path $RootDir "memory/projects/smoke-project/shared.md"),
+      (Join-Path $RootDir "memory/projects/smoke-project/hosts/smoke-host.md"),
+      (Join-Path $RootDir "memory/projects/smoke-project/index/smoke-host.md"),
       "AGENTS.md",
       "CLAUDE.md",
       "GEMINI.md",
@@ -88,13 +100,44 @@ try {
       "workitems/template.md",
       ".agent-workflow/state.env"
     )) {
-    $fullPath = Join-Path $tmpRepo $path
+    $fullPath = if ([System.IO.Path]::IsPathRooted($path)) { $path } else { Join-Path $tmpRepo $path }
     if (-not (Test-Path -LiteralPath $fullPath)) {
       Write-Error "expected path missing after bootstrap: $path"
       Write-Error "--- bootstrap log ---"
       Get-Content -LiteralPath $logSmoke | Write-Error
       Write-Error "--- repo tree ---"
       Get-ChildItem -LiteralPath $tmpRepo -Recurse -Force | ForEach-Object { $_.FullName } | Write-Error
+      exit 1
+    }
+  }
+
+  $stateFile = Join-Path $tmpRepo ".agent-workflow/state.env"
+  if (-not (Select-String -LiteralPath $stateFile -Pattern '^HOST_ID=smoke-host$' -Quiet)) {
+    Write-Error "HOST_ID missing in state.env"
+    Get-Content -LiteralPath $stateFile | Write-Error
+    exit 1
+  }
+  if (-not (Select-String -LiteralPath $stateFile -Pattern '^PROJECT_ID=smoke-project$' -Quiet)) {
+    Write-Error "PROJECT_ID missing in state.env"
+    Get-Content -LiteralPath $stateFile | Write-Error
+    exit 1
+  }
+
+  $env:AGENT_KIT_HOST_ID = "other-host"
+  & $shellPath -NoProfile -File $BootstrapScript --project-root $tmpRepo --force *> $logSmoke
+  if ($LASTEXITCODE -ne 0) {
+    Write-Error "second-host bootstrap smoke failed"
+    Get-Content -LiteralPath $logSmoke | Write-Error
+    exit 1
+  }
+
+  foreach ($path in @(
+      (Join-Path $RootDir "memory/projects/smoke-project/hosts/other-host.md"),
+      (Join-Path $RootDir "memory/projects/smoke-project/index/other-host.md")
+    )) {
+    if (-not (Test-Path -LiteralPath $path)) {
+      Write-Error "expected second host memory path missing: $path"
+      Get-ChildItem -LiteralPath $tmpMemoryRoot -Recurse -Force | ForEach-Object { $_.FullName } | Write-Error
       exit 1
     }
   }
@@ -174,13 +217,18 @@ try {
 } finally {
   Restore-Env -Name "AGENT_KIT_HOME" -PreviousValue $oldAgentKitHome
   Restore-Env -Name "AGENT_KIT_STRICT_ISOLATION" -PreviousValue $oldStrict
+  Restore-Env -Name "AGENT_KIT_HOST_ID" -PreviousValue $oldHostId
   Restore-Env -Name "AGENT_KIT_INSTALL_DIR" -PreviousValue $oldInstallDir
   Restore-Env -Name "AGENT_KIT_AGENT_LIST" -PreviousValue $oldAgentList
   Remove-Item -LiteralPath $tmpRepo -Recurse -Force -ErrorAction SilentlyContinue
   Remove-Item -LiteralPath $tmpBlock -Recurse -Force -ErrorAction SilentlyContinue
   Remove-Item -LiteralPath $tmpInstall -Recurse -Force -ErrorAction SilentlyContinue
+  Remove-Item -LiteralPath $tmpMemoryRoot -Recurse -Force -ErrorAction SilentlyContinue
+  Remove-Item -LiteralPath $tmpHostMap -Force -ErrorAction SilentlyContinue
+  Remove-Item -LiteralPath $tmpHostMapOther -Force -ErrorAction SilentlyContinue
   Remove-Item -LiteralPath $tmpAgentList -Force -ErrorAction SilentlyContinue
   Remove-Item -LiteralPath $logSmoke -Force -ErrorAction SilentlyContinue
   Remove-Item -LiteralPath $logStrict -Force -ErrorAction SilentlyContinue
   Remove-Item -LiteralPath $logInstall -Force -ErrorAction SilentlyContinue
+  Remove-Item -LiteralPath $tmpHostMapDir -Force -ErrorAction SilentlyContinue
 }

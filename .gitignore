@@ -1,11 +1,15 @@
 # generated memory files (project-specific, private)
 memory/*_MEMORY.md
+memory/projects/*
+!memory/projects/.gitkeep
 
 # local agent command list generated from sample
 config/agents.list
 
 # project-specific local config (not in public repo)
 config/project-map.tsv
+config/project-map/*.tsv
+!config/project-map/.gitkeep
 
 # private project context (synced via Nextcloud, not via git)
 docs/*.md

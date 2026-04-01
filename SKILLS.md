@@ -61,7 +61,7 @@ git push
 ```
 agent-kit/
   profiles/             <- Projekt-Profile (CLAUDE.md Quelle)
-  memory/               <- Shared Memory pro Projekt
+  memory/projects/      <- shared.md + hosts/<host>.md + index/<host>.md
   docs/                 <- Kontext-Docs pro Domaene
   workitems/            <- Cross-Repo Workitems
   todos/                <- TODO-Listen nach Bereich

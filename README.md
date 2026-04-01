@@ -13,7 +13,7 @@ the first time you run an agent inside a Git repository.
 Bootstrap creates:
 
 - `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` (profile links)
-- `MEMORY.md` (project memory link)
+- `MEMORY.md` (host-specific memory index link)
 - `SKILLS.md` (skills link)
 - `workitems/INDEX.md` and `workitems/template.md`
 - `.agent-workflow/state.env` marker
@@ -202,6 +202,7 @@ AGENT_KIT_ALLOW_COPY_FALLBACK=0
 
 - `AGENT_KIT_HOME`: path to this repository
 - `AGENT_KIT_AGENT_LIST`: explicit path to agent command list file
+- `AGENT_KIT_HOST_ID`: explicit host identifier for host-aware memory and host-specific project maps
 - `AGENT_KIT_AUTOBOOTSTRAP=0`: disable auto-bootstrap for one command
 - `AGENT_KIT_AUTOBOOTSTRAP_FORCE_ROOTS`: project root list that should auto-refresh with `--force` (Windows `;`, Linux/WSL `:` separated; in practice mainly useful for Windows copy-fallback setups)
 - `AGENT_KIT_STRICT_ISOLATION=1`: block mixed legacy state (default)
@@ -216,7 +217,36 @@ Optional path-prefix profile mapping:
 ```
 
 File: `config/project-map.tsv`  
-Format: `<absolute-path-prefix><TAB><profile-name>`
+Format: `<absolute-path-prefix><TAB><profile-name>[<TAB><project-id>]`
+
+Host-specific overrides are supported via:
+
+```text
+config/project-map/<host-id>.tsv
+```
+
+Bootstrap uses this lookup order:
+
+1. `config/project-map/<host-id>.tsv`
+2. `config/project-map.tsv`
+
+`project-id` is optional. If omitted, bootstrap falls back to the sanitized
+project folder name.
+
+## Host-Aware Memory
+
+Bootstrap writes project memory into:
+
+```text
+memory/projects/<project-id>/
+  shared.md
+  hosts/<host-id>.md
+  index/<host-id>.md
+```
+
+`MEMORY.md` inside the project points to `index/<host-id>.md`.
+The index tells agents to read shared knowledge first, then host-local notes,
+and to treat other host files as reference only.
 
 ## Command Reference
 
