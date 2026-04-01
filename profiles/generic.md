@@ -17,6 +17,16 @@
 - Never write secrets, tokens, or local credentials into shared files.
 - Promote host-local findings to shared only after they are verified beyond one host.
 
+## Preflight
+
+Before starting a new task:
+
+1. Read `MEMORY.md` and follow its read order.
+2. Check project-local `workitems/INDEX.md` for related or overlapping work.
+3. Check other host files listed in `MEMORY.md` for prior findings on the same topic.
+4. Reuse findings from another host only after local verification.
+5. If overlap exists, narrow scope or reconcile it before editing.
+
 ## Workflow
 
 1. Define scope as a single workitem.
