@@ -230,5 +230,10 @@ try {
   Remove-Item -LiteralPath $logSmoke -Force -ErrorAction SilentlyContinue
   Remove-Item -LiteralPath $logStrict -Force -ErrorAction SilentlyContinue
   Remove-Item -LiteralPath $logInstall -Force -ErrorAction SilentlyContinue
-  Remove-Item -LiteralPath $tmpHostMapDir -Force -ErrorAction SilentlyContinue
+  if (Test-Path -LiteralPath $tmpHostMapDir) {
+    $remainingHostMapEntries = @(Get-ChildItem -LiteralPath $tmpHostMapDir -Force -ErrorAction SilentlyContinue)
+    if ($remainingHostMapEntries.Count -eq 0) {
+      Remove-Item -LiteralPath $tmpHostMapDir -Force -ErrorAction SilentlyContinue
+    }
+  }
 }
