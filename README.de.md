@@ -18,6 +18,12 @@ Bootstrap erzeugt:
 - `workitems/INDEX.md` und `workitems/template.md`
 - `.agent-workflow/state.env` Marker
 
+Zusaetzlich bereitet Bootstrap gemeinsamen Koordinationszustand unter
+`AGENT_KIT_HOME` vor:
+
+- `memory/projects/<project-id>/...` fuer host-aware Projekt-Memory
+- `workitems/active/<project-id>/` fuer leichte Cross-Host-Aktivmeldungen
+
 Außerhalb eines Git-Repositories wird der Bootstrap sauber zurückgestellt und
 nach `git init` beim nächsten Wrapper-Aufruf automatisch erneut versucht.
 
@@ -138,6 +144,8 @@ als angebunden, sobald Bootstrap dort einmal erfolgreich gelaufen ist und
    - `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `MEMORY.md`, `SKILLS.md`
    - `workitems/`
    - `.agent-workflow/state.env`
+6. Fuer Mehrhost-Koordination vor neuer Arbeit den Abschnitt `Active Work`
+   in `MEMORY.md` pruefen.
 
 ### Weg B: Manuell per Bootstrap-Skript
 
@@ -219,8 +227,29 @@ Optionales Profil-Mapping per Pfad-Praefix:
 /home/user/work	generic
 ```
 
-Datei: `config/project-map.tsv`  
-Format: `<absolutes-praefix><TAB><profilname>[<TAB><project-id>]`
+Datei: `config/project-map.tsv`
+Format: `<absolute-path-prefix><TAB><profile-name>[<TAB><project-id>]`
+
+## Host-Aware Koordination
+
+`MEMORY.md` ist der kanonische Einstiegspunkt fuer Cross-Host-Projektkontext.
+
+Lesereihenfolge:
+
+1. Shared Knowledge
+2. aktuelles Host-Memory
+3. andere Host-Memorys nur als Referenz
+4. `Active Work`-Verzeichnis fuer laufende Arbeiten anderer Hosts
+
+Empfohlene Nutzung:
+
+1. Vor neuer Arbeit `MEMORY.md` lesen.
+2. Wenn die Aufgabe aktiv bearbeitet wird, die eigene Host-Claim-Datei unter
+   `workitems/active/<project-id>/` anlegen oder aktualisieren.
+3. Wenn die Aufgabe erledigt oder uebergeben ist, den Claim schliessen oder
+   entfernen.
+4. Dauerhafte Erkenntnisse in Shared- oder Host-Memory uebernehmen, nicht in
+   Active-Claims belassen.
 
 Host-spezifische Overrides sind moeglich ueber:
 

@@ -19,6 +19,8 @@ docs/*.md
 !docs/release.de.md
 todos/
 workitems/
+!templates/workitems/
+!templates/workitems/*.md
 logs/
 archive/
 

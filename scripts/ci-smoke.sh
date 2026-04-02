@@ -22,11 +22,12 @@ TMP_HOST_MAP_DIR="$ROOT_DIR/config/project-map"
 TMP_HOST_MAP="$TMP_HOST_MAP_DIR/smoke-host.tsv"
 TMP_HOST_MAP_OTHER="$TMP_HOST_MAP_DIR/other-host.tsv"
 TMP_MEMORY_ROOT="$ROOT_DIR/memory/projects/smoke-project"
+TMP_ACTIVE_ROOT="$ROOT_DIR/workitems/active/smoke-project"
 LOG_SMOKE="$(mktemp)"
 LOG_STRICT="$(mktemp)"
 LOG_DEFER="$(mktemp)"
 LOG_INSTALL="$(mktemp)"
-trap 'rm -rf "$TMP_REPO" "$TMP_BLOCK" "$TMP_DEFER" "$TMP_INSTALL" "$TMP_AGENT_LIST_DIR" "$TMP_MEMORY_ROOT" "$LOG_SMOKE" "$LOG_STRICT" "$LOG_DEFER" "$LOG_INSTALL"; rm -f "$TMP_HOST_MAP" "$TMP_HOST_MAP_OTHER"; rmdir "$TMP_HOST_MAP_DIR" 2>/dev/null || true' EXIT
+trap 'rm -rf "$TMP_REPO" "$TMP_BLOCK" "$TMP_DEFER" "$TMP_INSTALL" "$TMP_AGENT_LIST_DIR" "$TMP_MEMORY_ROOT" "$TMP_ACTIVE_ROOT" "$LOG_SMOKE" "$LOG_STRICT" "$LOG_DEFER" "$LOG_INSTALL"; rm -f "$TMP_HOST_MAP" "$TMP_HOST_MAP_OTHER"; rmdir "$TMP_HOST_MAP_DIR" 2>/dev/null || true; rmdir "$ROOT_DIR/workitems/active" 2>/dev/null || true' EXIT
 
 git -C "$TMP_REPO" init -q
 mkdir -p "$TMP_HOST_MAP_DIR"
@@ -67,7 +68,8 @@ done
 for p in \
   "$ROOT_DIR/memory/projects/smoke-project/shared.md" \
   "$ROOT_DIR/memory/projects/smoke-project/hosts/smoke-host.md" \
-  "$ROOT_DIR/memory/projects/smoke-project/index/smoke-host.md"; do
+  "$ROOT_DIR/memory/projects/smoke-project/index/smoke-host.md" \
+  "$ROOT_DIR/workitems/active/smoke-project"; do
   if [ ! -e "$p" ]; then
     echo "expected host-aware memory path missing: $p" >&2
     cat "$LOG_SMOKE" >&2
@@ -90,6 +92,24 @@ fi
 if ! grep -q '^PROJECT_ID=smoke-project$' "$TMP_REPO/.agent-workflow/state.env"; then
   echo "PROJECT_ID missing in state.env" >&2
   cat "$TMP_REPO/.agent-workflow/state.env" >&2
+  exit 1
+fi
+
+if ! grep -q "^ACTIVE_WORK_DIR=$ROOT_DIR/workitems/active/smoke-project$" "$TMP_REPO/.agent-workflow/state.env"; then
+  echo "ACTIVE_WORK_DIR missing in state.env" >&2
+  cat "$TMP_REPO/.agent-workflow/state.env" >&2
+  exit 1
+fi
+
+if ! grep -q '^## Active Work$' "$ROOT_DIR/memory/projects/smoke-project/index/smoke-host.md"; then
+  echo "Active Work section missing in memory index" >&2
+  cat "$ROOT_DIR/memory/projects/smoke-project/index/smoke-host.md" >&2
+  exit 1
+fi
+
+if ! grep -q "$ROOT_DIR/workitems/active/smoke-project" "$ROOT_DIR/memory/projects/smoke-project/index/smoke-host.md"; then
+  echo "Active Work directory missing in memory index" >&2
+  cat "$ROOT_DIR/memory/projects/smoke-project/index/smoke-host.md" >&2
   exit 1
 fi
 

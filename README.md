@@ -18,6 +18,11 @@ Bootstrap creates:
 - `workitems/INDEX.md` and `workitems/template.md`
 - `.agent-workflow/state.env` marker
 
+Bootstrap also prepares shared coordination state under `AGENT_KIT_HOME`:
+
+- `memory/projects/<project-id>/...` for host-aware project memory
+- `workitems/active/<project-id>/` for lightweight cross-host active claims
+
 If called outside a Git repository, bootstrap is deferred gracefully and retried
 automatically after `git init` on the next wrapped agent call.
 
@@ -135,6 +140,8 @@ considered connected once bootstrap has run successfully there and
    - `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `MEMORY.md`, `SKILLS.md`
    - `workitems/`
    - `.agent-workflow/state.env`
+6. For multi-host coordination, check the `Active Work` section inside
+   `MEMORY.md` before starting overlapping work.
 
 ### Path B: Manual bootstrap command
 
@@ -216,8 +223,27 @@ Optional path-prefix profile mapping:
 /home/user/work	generic
 ```
 
-File: `config/project-map.tsv`  
+File: `config/project-map.tsv`
 Format: `<absolute-path-prefix><TAB><profile-name>[<TAB><project-id>]`
+
+## Host-Aware Coordination
+
+`MEMORY.md` is the canonical entrypoint for cross-host project context.
+
+Read order:
+
+1. shared knowledge
+2. current host memory
+3. other host memories as reference only
+4. `Active Work` directory for in-progress scope on other hosts
+
+Recommended usage:
+
+1. Check `MEMORY.md` before starting work.
+2. If the task is active, create or update your host claim file in
+   `workitems/active/<project-id>/`.
+3. When the task is done or handed off, close or remove that host claim.
+4. Promote durable findings into shared or host memory, not into active claims.
 
 Host-specific overrides are supported via:
 

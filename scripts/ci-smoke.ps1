@@ -47,6 +47,7 @@ $tmpHostMapDir = Join-Path $RootDir "config/project-map"
 $tmpHostMap = Join-Path $tmpHostMapDir "smoke-host.tsv"
 $tmpHostMapOther = Join-Path $tmpHostMapDir "other-host.tsv"
 $tmpMemoryRoot = Join-Path $RootDir "memory/projects/smoke-project"
+$tmpActiveRoot = Join-Path $RootDir "workitems/active/smoke-project"
 $logSmoke = Join-Path ([System.IO.Path]::GetTempPath()) ("agent-kit-smoke-" + [System.Guid]::NewGuid().ToString("N") + ".log")
 $logStrict = Join-Path ([System.IO.Path]::GetTempPath()) ("agent-kit-strict-" + [System.Guid]::NewGuid().ToString("N") + ".log")
 $logInstall = Join-Path ([System.IO.Path]::GetTempPath()) ("agent-kit-install-" + [System.Guid]::NewGuid().ToString("N") + ".log")
@@ -91,6 +92,7 @@ try {
       (Join-Path $RootDir "memory/projects/smoke-project/shared.md"),
       (Join-Path $RootDir "memory/projects/smoke-project/hosts/smoke-host.md"),
       (Join-Path $RootDir "memory/projects/smoke-project/index/smoke-host.md"),
+      (Join-Path $RootDir "workitems/active/smoke-project"),
       "AGENTS.md",
       "CLAUDE.md",
       "GEMINI.md",
@@ -120,6 +122,22 @@ try {
   if (-not (Select-String -LiteralPath $stateFile -Pattern '^PROJECT_ID=smoke-project$' -Quiet)) {
     Write-Error "PROJECT_ID missing in state.env"
     Get-Content -LiteralPath $stateFile | Write-Error
+    exit 1
+  }
+  if (-not (Select-String -LiteralPath $stateFile -Pattern ([regex]::Escape("ACTIVE_WORK_DIR=$tmpActiveRoot")) -Quiet)) {
+    Write-Error "ACTIVE_WORK_DIR missing in state.env"
+    Get-Content -LiteralPath $stateFile | Write-Error
+    exit 1
+  }
+  $memoryIndex = Join-Path $RootDir "memory/projects/smoke-project/index/smoke-host.md"
+  if (-not (Select-String -LiteralPath $memoryIndex -Pattern '^## Active Work$' -Quiet)) {
+    Write-Error "Active Work section missing in memory index"
+    Get-Content -LiteralPath $memoryIndex | Write-Error
+    exit 1
+  }
+  if (-not (Select-String -LiteralPath $memoryIndex -Pattern ([regex]::Escape($tmpActiveRoot)) -Quiet)) {
+    Write-Error "Active Work directory missing in memory index"
+    Get-Content -LiteralPath $memoryIndex | Write-Error
     exit 1
   }
 
@@ -224,6 +242,7 @@ try {
   Remove-Item -LiteralPath $tmpBlock -Recurse -Force -ErrorAction SilentlyContinue
   Remove-Item -LiteralPath $tmpInstall -Recurse -Force -ErrorAction SilentlyContinue
   Remove-Item -LiteralPath $tmpMemoryRoot -Recurse -Force -ErrorAction SilentlyContinue
+  Remove-Item -LiteralPath $tmpActiveRoot -Recurse -Force -ErrorAction SilentlyContinue
   Remove-Item -LiteralPath $tmpHostMap -Force -ErrorAction SilentlyContinue
   Remove-Item -LiteralPath $tmpHostMapOther -Force -ErrorAction SilentlyContinue
   Remove-Item -LiteralPath $tmpAgentList -Force -ErrorAction SilentlyContinue
@@ -234,6 +253,13 @@ try {
     $remainingHostMapEntries = @(Get-ChildItem -LiteralPath $tmpHostMapDir -Force -ErrorAction SilentlyContinue)
     if ($remainingHostMapEntries.Count -eq 0) {
       Remove-Item -LiteralPath $tmpHostMapDir -Force -ErrorAction SilentlyContinue
+    }
+  }
+  $activeRootParent = Join-Path $RootDir "workitems/active"
+  if (Test-Path -LiteralPath $activeRootParent) {
+    $remainingActiveEntries = @(Get-ChildItem -LiteralPath $activeRootParent -Force -ErrorAction SilentlyContinue)
+    if ($remainingActiveEntries.Count -eq 0) {
+      Remove-Item -LiteralPath $activeRootParent -Force -ErrorAction SilentlyContinue
     }
   }
 }

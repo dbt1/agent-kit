@@ -23,14 +23,18 @@ Before starting a new task:
 
 1. Read `MEMORY.md` and follow its read order.
 2. Check project-local `workitems/INDEX.md` for related or overlapping work.
-3. Check other host files listed in `MEMORY.md` for prior findings on the same topic.
-4. Reuse findings from another host only after local verification.
-5. If overlap exists, narrow scope or reconcile it before editing.
+3. Check the `Active Work` directory listed in `MEMORY.md` for ongoing work on this project.
+4. Check other host files listed in `MEMORY.md` for prior findings on the same topic.
+5. Reuse findings from another host only after local verification.
+6. If overlap exists, narrow scope or reconcile it before editing.
+7. While work is active, create or update the host claim file listed in `MEMORY.md`.
+8. Close or delete the host claim when the task is finished or handed off.
 
 ## Workflow
 
 1. Define scope as a single workitem.
-2. Execute changes with minimal diff.
-3. Validate via explicit local commands.
-4. Review relevant GitHub checks (Actions run status) for the change.
-5. Document outcomes in workitem files.
+2. Record the active scope in the host claim file for this project.
+3. Execute changes with minimal diff.
+4. Validate via explicit local commands.
+5. Review relevant GitHub checks (Actions run status) for the change.
+6. Document outcomes in workitem files and close the active claim.
